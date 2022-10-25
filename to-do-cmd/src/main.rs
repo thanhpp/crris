@@ -1,10 +1,13 @@
+use std::path::PathBuf;
+
+use anyhow::{anyhow, Ok};
 use structopt::StructOpt;
 mod cli;
 use cli::{Action::*, CommandLineArgs};
 mod task;
 use task::Task;
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     // get command line arguments
     let CommandLineArgs {
         action,
@@ -12,7 +15,9 @@ fn main() {
     } = CommandLineArgs::from_args();
 
     // Unpack
-    let journal_file = journal_file.expect("Failed to find journal file");
+    let journal_file = journal_file
+        .or_else(find_default_journal_file)
+        .ok_or(anyhow!("Failed to find journal file"))?;
 
     // perform action
     match action {
@@ -21,4 +26,13 @@ fn main() {
         Done { position } => task::complete_task(journal_file, position),
     }
     .expect("Failed to perform action");
+
+    Ok(())
+}
+
+fn find_default_journal_file() -> Option<PathBuf> {
+    home::home_dir().map(|mut path| {
+        path.push(".rusty_journal.json");
+        path
+    })
 }

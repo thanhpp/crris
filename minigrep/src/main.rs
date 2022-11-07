@@ -1,4 +1,5 @@
-use std::{env, fs, process};
+use minigrep::Config;
+use std::{env, process};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -7,32 +8,10 @@ fn main() {
         process::exit(1);
     });
 
-    println!("{} {}", config.query, config.file_path);
-
-    run(config);
-}
-
-struct Config {
-    query: String,
-    file_path: String,
-}
-
-impl Config {
-    pub fn new(args: &[String]) -> Result<Config, &'static str> {
-        if args.len() < 3 {
-            return Err("not enough arguments");
-        }
-
-        Ok(Config {
-            query: args[1].clone(),
-            file_path: args[2].clone(),
-        })
+    if let Err(e) = minigrep::run(config) {
+        println!("App error: {e}");
+        process::exit(1);
     }
-}
-
-fn run(cfg: Config) {
-    let file_content = fs::read_to_string(cfg.file_path).expect("unable to read file");
-    println!("file content: {}", file_content);
 }
 
 // V3

@@ -1,9 +1,10 @@
 use std::error::Error;
-use std::fs;
+use std::{env, fs};
 
 pub struct Config {
     query: String,
     file_path: String,
+    ignore_case: bool,
 }
 
 impl Config {
@@ -15,6 +16,7 @@ impl Config {
         Ok(Config {
             query: args[1].clone(),
             file_path: args[2].clone(),
+            ignore_case: env::var("IGNORE_CASE").is_ok(),
         })
     }
 }
@@ -23,7 +25,13 @@ pub fn run(cfg: Config) -> Result<(), Box<dyn Error>> {
     let file_content = fs::read_to_string(cfg.file_path)?;
     println!("file content: {}", file_content);
 
-    for line in search(&cfg.query, &file_content) {
+    let result = if cfg.ignore_case {
+        search_case_insensitive(&cfg.query, &file_content)
+    } else {
+        search(&cfg.query, &file_content)
+    };
+
+    for line in result {
         println!("{line}");
     }
 

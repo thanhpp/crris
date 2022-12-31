@@ -19,6 +19,8 @@ impl ThreadPool {
         assert!(size > 0);
 
         let (sender, receiver) = mpsc::channel();
+        // Arc: enable multiple owner
+        // Mutex: only 1 worker gets the job at a time
         let receiver = Arc::new(Mutex::new(receiver));
         let mut workers = Vec::with_capacity(size); // pre-allocate
 
@@ -35,11 +37,14 @@ impl ThreadPool {
 
     pub fn execute<F>(&self, f: F)
     where
-        F: FnOnce() + Send + 'static, // eFnOnce: xecute a request once; Send: transfer the closure from 1 thread to another; 'static: don't know
+        // FnOnce: xecute a request once;
+        // Send: transfer the closure from 1 thread to another;
+        // 'static: don't know
+        F: FnOnce() + Send + 'static,
     {
         let job = Box::new(f);
 
-        self.sender.send(job).unwrap();
+        self.sender.send(job).unwrap(); // send the job
     }
 }
 
@@ -51,11 +56,11 @@ struct Worker {
 impl Worker {
     fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
         let thread = thread::spawn(move || loop {
-            let job = receiver.lock().unwrap().recv().unwrap();
+            let job = receiver.lock().unwrap().recv().unwrap(); // block for the next job
 
             println!("Worker {id} is executing");
 
-            job();
+            job(); // do the job
         });
 
         Worker {

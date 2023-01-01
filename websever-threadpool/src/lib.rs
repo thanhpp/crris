@@ -46,26 +46,52 @@ impl ThreadPool {
 
         self.sender.send(job).unwrap(); // send the job
     }
+
+    fn drop(&mut self) {
+        for worker in &mut self.workers {
+            println!("shuting down worker id {}", worker.id);
+
+            if let Some(thread) = worker.thread.take() {
+                // take the value and replace it with None
+                thread.join().unwrap();
+            }
+        }
+    }
 }
 
 struct Worker {
     id: usize,
-    thread: thread::JoinHandle<()>,
+    thread: Option<thread::JoinHandle<()>>, // to replace some with none when drop
 }
 
 impl Worker {
     fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
         let thread = thread::spawn(move || loop {
-            let job = receiver.lock().unwrap().recv().unwrap(); // block for the next job
+            // let job = receiver.lock().unwrap().recv().unwrap(); // block for the next job
 
-            println!("Worker {id} is executing");
+            // println!("Worker {id} is executing");
 
-            job(); // do the job
+            // job(); // do the job
+
+            let msg = receiver.lock().unwrap().recv();
+
+            match msg {
+                Ok(job) => {
+                    println!("worker {id} is executing");
+
+                    job()
+                }
+                Err(_) => {
+                    println!("worker {id} is disconnected");
+
+                    break; // stop the loop
+                }
+            }
         });
 
         Worker {
             id: id,
-            thread: thread,
+            thread: Some(thread),
         }
     }
 }

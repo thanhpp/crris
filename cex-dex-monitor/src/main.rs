@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 mod cexdexclient;
+mod slackclient;
 
 use crate::cexdexclient::client::*;
 use cex_dex_monitor::Config;

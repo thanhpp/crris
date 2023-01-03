@@ -1,2 +1,2 @@
-pub mod slackclient;
+pub mod client;
 mod test;

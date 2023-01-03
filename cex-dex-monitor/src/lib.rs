@@ -6,7 +6,7 @@ use std::{error::Error, fs};
 #[derive(serde::Deserialize)]
 pub struct Config {
     pub cex_dex_config: CexDexConfig,
-    pub slack_client_config: slackclient::slackclient::SlackClientConfig,
+    pub slack_client_config: slackclient::client::SlackClientConfig,
 }
 
 #[derive(serde::Serialize, Deserialize)]

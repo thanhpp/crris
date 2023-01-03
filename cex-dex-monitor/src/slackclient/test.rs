@@ -4,7 +4,7 @@ mod tests {
 
     use serde::Deserialize;
 
-    use crate::slackclient::slackclient::{Client, SlackClientConfig};
+    use crate::slackclient::client::{Client, SlackClientConfig};
 
     #[tokio::test]
     async fn send_webhook() {

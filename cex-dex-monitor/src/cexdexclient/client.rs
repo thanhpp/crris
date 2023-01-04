@@ -28,9 +28,17 @@ impl CexDexClient {
             .basic_auth(&self.user, Some(&self.pass))
             .send()
             .await?
-            .json::<Response>()
+            .text()
             .await?;
 
-        Ok(body)
+        let resp: Response = match serde_json::from_str(&body) {
+            Ok(r) => r,
+            Err(e) => {
+                println!("serde_json error {}, body {}", e, &body);
+                return Err(e.into());
+            }
+        };
+
+        Ok(resp)
     }
 }

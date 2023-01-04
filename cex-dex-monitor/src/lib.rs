@@ -11,6 +11,7 @@ pub struct Config {
 
 #[derive(serde::Serialize, Deserialize)]
 pub struct CexDexConfig {
+    pub env: String,
     pub base_url: String,
     pub user: String,
     pub pass: String,

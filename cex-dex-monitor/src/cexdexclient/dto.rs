@@ -1,18 +1,20 @@
-use serde::Deserialize;
+use std::collections::HashMap;
 
-#[derive(Deserialize, Debug)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Response {
-    result: ResponseResult,
-    data: Vec<StateData>,
+    pub result: ResponseResult,
+    pub data: Vec<StateData>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ResponseResult {
-    code: i64,
-    message: String,
+    pub code: i64,
+    pub message: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct StateData {
     pub state_id: String,
     pub cex: String,
@@ -32,12 +34,12 @@ pub struct StateData {
     pub slippage_percent: f64,
     pub p1_cex_orders: Option<Vec<CexOrderData>>,
     pub p2_cex_orders: Option<Vec<CexOrderData>>,
-    // p2_dex_txs: String,
-    // asset_change: String,
-    // asset_change_with_fee: String,
+    pub p2_dex_txs: Option<Vec<DexTxData>>,
+    pub asset_change: Option<HashMap<String, f64>>,
+    pub asset_change_with_fee: Option<HashMap<String, f64>>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct CexOrderData {
     pub id: String,
     pub status: String,
@@ -53,4 +55,30 @@ pub struct CexOrderData {
     pub fee_amount: f64,
     pub filled_at: i64,
     pub created_time: i64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct DexTxData {
+    pub nonce: i64,
+    pub tx_hash: String,
+    pub status: String,
+    pub to_wallet: String,
+    pub router_address: String,
+    pub token_in: String,
+    pub token_out: String,
+    pub amount_in: f64,
+    pub estimated_amount_out: f64,
+    pub actual_amount_out: f64,
+    pub estimated_price: f64,
+    pub estimated_price_with_fee: f64,
+    pub actual_price: f64,
+    pub actual_price_with_fee: f64,
+    pub gas_price: f64,
+    pub gas_used: u64,
+    pub max_tip: f64,
+    pub estimated_at: i64,
+    pub broadcasted_at: i64,
+    pub mined_at: i64,
+    pub mined_block: u64,
+    pub native_token_price_in_quote: f64,
 }

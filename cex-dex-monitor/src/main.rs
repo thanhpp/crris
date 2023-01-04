@@ -46,20 +46,21 @@ async fn monitor() {
         }
         let states = states.unwrap();
 
+        if last_notified_state.len() == 0 && states.data.len() != 0 {
+            last_notified_state = states.data[states.data.len() - 1].state_id.clone();
+            println!("updated fisrt notified state {}", &last_notified_state);
+        }
+
         for i in (0..states.data.len()).rev() {
             let state = &states.data[i];
             // skips empty state
             if state.state_id.len() == 0 {
                 continue;
             }
+
             // check latest
             if last_notified_state.eq(&state.state_id) {
                 break;
-            }
-            // set first
-            if last_notified_state.len() == 0 {
-                last_notified_state = state.state_id.clone();
-                println!("updated fisrt notified state {}", &last_notified_state);
             }
 
             if let Err(e) = sl_client
@@ -85,7 +86,24 @@ fn build_state_done_message(state: &cexdexclient::dto::StateData, env: &String) 
         "*****
 > ENV: {}
 STATE_ID: {}
+SIDE: {}
+
+P1 FILLED ORDERS: {}
+P1 BASE FILLED: {}
+P1 QUOTE FILLED: {}
+
+P2 FILLED ORDERS: {}
+P2 BASE FILLED: {}
+P2 QUOTE FILLED: {}
 *****",
-        env, state.state_id,
+        env,
+        state.state_id,
+        state.side,
+        state.count_p1_filled_orders(),
+        state.p1_sum_base_filled(),
+        state.p1_sum_quote_filled(),
+        state.count_p2_filled_orders(),
+        state.p2_sum_base_filled(),
+        state.p2_sum_quote_filled(),
     )
 }

@@ -39,6 +39,56 @@ pub struct StateData {
     pub asset_change_with_fee: Option<HashMap<String, f64>>,
 }
 
+impl StateData {
+    fn sum_filled(&self, v: &Vec<CexOrderData>, f: fn(&CexOrderData) -> f64) -> f64 {
+        v.iter().map(f).sum()
+    }
+
+    // part 1 cex
+    pub fn count_p1_filled_orders(&self) -> usize {
+        match &self.p1_cex_orders {
+            None => 0,
+            Some(v) => v.len(),
+        }
+    }
+
+    pub fn p1_sum_base_filled(&self) -> f64 {
+        match &self.p1_cex_orders {
+            None => 0.0,
+            Some(v) => self.sum_filled(v, |x| x.filled_base_amount),
+        }
+    }
+
+    pub fn p1_sum_quote_filled(&self) -> f64 {
+        match &self.p1_cex_orders {
+            None => 0.0,
+            Some(v) => self.sum_filled(v, |x| x.filled_quote_amount),
+        }
+    }
+
+    // part 2 cex
+    pub fn count_p2_filled_orders(&self) -> usize {
+        match &self.p2_cex_orders {
+            None => 0,
+            Some(v) => v.len(),
+        }
+    }
+
+    pub fn p2_sum_base_filled(&self) -> f64 {
+        match &self.p2_cex_orders {
+            None => 0.0,
+            Some(v) => self.sum_filled(v, |x| x.filled_base_amount),
+        }
+    }
+
+    pub fn p2_sum_quote_filled(&self) -> f64 {
+        match &&self.p2_cex_orders {
+            None => 0.0,
+            Some(v) => self.sum_filled(v, |x| x.filled_quote_amount),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CexOrderData {
     pub id: String,

@@ -44,6 +44,20 @@ impl StateData {
         v.iter().map(f).sum()
     }
 
+    pub fn get_cex_price(&self, o: &Option<Vec<CexOrderData>>) -> f64 {
+        match o {
+            None => 0.0,
+            Some(v) => {
+                let base_filled = self.sum_filled(v, |x| x.filled_base_amount);
+                let quote_filled = self.sum_filled(v, |x| x.filled_quote_amount);
+                if quote_filled == 0.0 {
+                    return 0.0;
+                }
+                return base_filled / quote_filled;
+            }
+        }
+    }
+
     // part 1 cex
     pub fn count_p1_filled_orders(&self) -> usize {
         match &self.p1_cex_orders {
@@ -82,10 +96,55 @@ impl StateData {
     }
 
     pub fn p2_sum_quote_filled(&self) -> f64 {
-        match &&self.p2_cex_orders {
+        match &self.p2_cex_orders {
             None => 0.0,
             Some(v) => self.sum_filled(v, |x| x.filled_quote_amount),
         }
+    }
+
+    // part 2 dex
+    pub fn p2_count_created_txs(&self) -> usize {
+        match &self.p2_dex_txs {
+            None => 0,
+            Some(v) => v.len(),
+        }
+    }
+
+    pub fn p2_sum_token_filled(&self, token: String) -> f64 {
+        match &self.p2_dex_txs {
+            None => 0.0,
+            Some(v) => v
+                .iter()
+                .map(|x| {
+                    if x.token_in.eq(&token) {
+                        x.amount_in
+                    } else {
+                        x.actual_amount_out
+                    }
+                })
+                .sum(),
+        }
+    }
+
+    pub fn p2_summary_txs(&self) -> String {
+        let mut summary = String::from("");
+        if let Some(txs) = &self.p2_dex_txs {
+            for tx in txs {
+                summary.push_str(&format!("{}: {}\n", tx.tx_hash.clone(), tx.status.clone()))
+            }
+        }
+
+        summary
+    }
+
+    pub fn asset_changes(&self) -> String {
+        let mut asset_changes = String::from("");
+        if let Some(m) = &self.asset_change_with_fee {
+            for (k, v) in m.iter() {
+                asset_changes.push_str(&format!("- {}: {}\n", k, v));
+            }
+        }
+        asset_changes
     }
 }
 

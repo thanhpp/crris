@@ -48,7 +48,14 @@ async fn monitor() {
 
         if last_notified_state.len() == 0 && states.data.len() != 0 {
             last_notified_state = states.data[states.data.len() - 1].state_id.clone();
-            println!("updated fisrt notified state {}", &last_notified_state);
+            println!(
+                "updated fisrt notified state {}\n{}",
+                &last_notified_state,
+                build_state_done_message(
+                    &states.data[states.data.len() - 1],
+                    &cfg.cex_dex_config.env
+                )
+            );
         }
 
         for i in (0..states.data.len()).rev() {
@@ -82,8 +89,18 @@ async fn monitor() {
 }
 
 fn build_state_done_message(state: &cexdexclient::dto::StateData, env: &String) -> String {
+    let p2_dex_token_filled = state.p2_sum_token_filled(state.token.clone());
+    let p2_dex_stable_filled = state.p2_sum_token_filled(String::from("")); // if not equal -> revert amountIn & amountOut
+    let p2_dex_price = if p2_dex_stable_filled == 0 as f64 {
+        0.0
+    } else {
+        p2_dex_token_filled / p2_dex_stable_filled
+    };
+
     format!(
         "*****
+*STATE DONE*
+
 > ENV: {}
 STATE_ID: {}
 SIDE: {}
@@ -91,10 +108,21 @@ SIDE: {}
 P1 FILLED ORDERS: {}
 P1 BASE FILLED: {}
 P1 QUOTE FILLED: {}
+P1 PRICE: {}
 
 P2 FILLED ORDERS: {}
 P2 BASE FILLED: {}
 P2 QUOTE FILLED: {}
+P2 PRICE: {}
+
+P2 CREATED TXs: {}
+P2 TOKEN FILLED: {}
+P2 STABLE FILLED: {}
+P2 PRICE: {}
+{}
+
+ASSET CHANGES:
+{}
 *****",
         env,
         state.state_id,
@@ -102,8 +130,16 @@ P2 QUOTE FILLED: {}
         state.count_p1_filled_orders(),
         state.p1_sum_base_filled(),
         state.p1_sum_quote_filled(),
+        state.get_cex_price(&state.p1_cex_orders),
         state.count_p2_filled_orders(),
         state.p2_sum_base_filled(),
         state.p2_sum_quote_filled(),
+        state.get_cex_price(&state.p2_cex_orders),
+        state.p2_count_created_txs(),
+        p2_dex_token_filled,
+        p2_dex_token_filled,
+        p2_dex_price,
+        state.p2_summary_txs(),
+        state.asset_changes(),
     )
 }

@@ -50,10 +50,10 @@ impl StateData {
             Some(v) => {
                 let base_filled = self.sum_filled(v, |x| x.filled_base_amount);
                 let quote_filled = self.sum_filled(v, |x| x.filled_quote_amount);
-                if quote_filled == 0.0 {
+                if base_filled == 0.0 {
                     return 0.0;
                 }
-                return base_filled / quote_filled;
+                return quote_filled / base_filled;
             }
         }
     }
@@ -110,13 +110,16 @@ impl StateData {
         }
     }
 
-    pub fn p2_sum_token_filled(&self, token: String) -> f64 {
+    pub fn p2_sum_token_filled(&self, token: &String) -> f64 {
         match &self.p2_dex_txs {
             None => 0.0,
             Some(v) => v
                 .iter()
                 .map(|x| {
-                    if x.token_in.eq(&token) {
+                    if !x.status.eq("EXECUTED") {
+                        return 0.0;
+                    }
+                    if x.token_in.eq(token) {
                         x.amount_in
                     } else {
                         x.actual_amount_out

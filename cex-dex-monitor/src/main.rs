@@ -25,23 +25,20 @@ async fn main() {
         }
     }
 
-    let mut awaits = Vec::new();
-    for v in cfg.cex_dex_config.iter() {
-        let aw = monitor(&v, &sl_client);
-        awaits.push(aw);
+    for v in cfg.cex_dex_config {
+        let sl_client_con = sl_client.clone();
+        tokio::spawn(async move {
+            monitor(&v, sl_client_con).await;
+        });
     }
 
+    // block for ctrl + C
     loop {
-        match awaits.pop() {
-            None => break,
-            Some(aw) => {
-                aw.await;
-            }
-        }
+        thread::sleep(Duration::from_secs(10))
     }
 }
 
-async fn monitor(cex_dex_cfg: &CexDexConfig, sl_client: &slackclient::client::Client) {
+async fn monitor(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::client::Client) {
     let mut last_notified_state: String = String::from("");
 
     let cd_client = CexDexClient::new(
@@ -63,15 +60,15 @@ async fn monitor(cex_dex_cfg: &CexDexConfig, sl_client: &slackclient::client::Cl
         let states = states.unwrap();
 
         if last_notified_state.len() == 0 && states.data.len() != 0 {
-            last_notified_state = states.data[states.data.len() - 1].state_id.clone();
+            last_notified_state = states.data[0].state_id.clone();
             println!(
                 "updated fisrt notified state {}\n{}",
                 &last_notified_state,
-                build_state_done_message(&states.data[states.data.len() - 1], &cex_dex_cfg.env)
+                build_state_done_message(&states.data[0], &cex_dex_cfg.env)
             );
         }
 
-        for i in (0..states.data.len()).rev() {
+        for i in 0..states.data.len() {
             let state = &states.data[i];
             // skips empty state
             if state.state_id.len() == 0 {
@@ -102,12 +99,12 @@ async fn monitor(cex_dex_cfg: &CexDexConfig, sl_client: &slackclient::client::Cl
 }
 
 fn build_state_done_message(state: &cexdexclient::dto::StateData, env: &String) -> String {
-    let p2_dex_token_filled = state.p2_sum_token_filled(state.token.clone());
-    let p2_dex_stable_filled = state.p2_sum_token_filled(String::from("")); // if not equal -> revert amountIn & amountOut
-    let p2_dex_price = if p2_dex_stable_filled == 0 as f64 {
+    let p2_dex_token_filled = state.p2_sum_token_filled(&state.token);
+    let p2_dex_stable_filled = state.p2_sum_token_filled(&String::from("USDT")); // now using usdt only
+    let p2_dex_price = if p2_dex_token_filled == 0 as f64 {
         0.0
     } else {
-        p2_dex_token_filled / p2_dex_stable_filled
+        p2_dex_stable_filled / p2_dex_token_filled
     };
 
     format!(
@@ -133,7 +130,6 @@ P2 TOKEN FILLED: {}
 P2 STABLE FILLED: {}
 P2 PRICE: {}
 {}
-
 ASSET CHANGES:
 {}
 *****",
@@ -150,7 +146,7 @@ ASSET CHANGES:
         state.get_cex_price(&state.p2_cex_orders),
         state.p2_count_created_txs(),
         p2_dex_token_filled,
-        p2_dex_token_filled,
+        p2_dex_stable_filled,
         p2_dex_price,
         state.p2_summary_txs(),
         state.asset_changes(),

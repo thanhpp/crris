@@ -19,7 +19,7 @@ impl CexDexClient {
         }
     }
 
-    pub async fn get_states(&self) -> Result<Response, Box<dyn Error>> {
+    pub async fn get_states(&self) -> Result<Response, Box<dyn Error + Send + Sync>> {
         let body = self
             .client
             .get(format!("{}/state", self.base_url))

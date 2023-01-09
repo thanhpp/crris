@@ -7,6 +7,7 @@ use std::{
 use reqwest::header::CONTENT_TYPE;
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone)]
 pub struct Client {
     client: reqwest::Client,
     webhooks: HashMap<String, String>,

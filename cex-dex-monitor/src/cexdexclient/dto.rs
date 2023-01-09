@@ -31,7 +31,7 @@ pub struct StateData {
     pub is_done: bool,
     pub created_time: String,
     pub p2_total_gas: f64,
-    pub slippage_percent: f64,
+    pub slippage: f64,
     pub p1_cex_orders: Option<Vec<CexOrderData>>,
     pub p2_cex_orders: Option<Vec<CexOrderData>>,
     pub p2_dex_txs: Option<Vec<DexTxData>>,

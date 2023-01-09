@@ -6,21 +6,12 @@ mod slackclient;
 use std::{thread, time::Duration};
 
 use crate::cexdexclient::client::*;
-use cex_dex_monitor::Config;
+use cex_dex_monitor::{CexDexConfig, Config};
 
 #[tokio::main]
 async fn main() {
-    monitor().await;
-}
-
-async fn monitor() {
-    let mut last_notified_state: String = String::from("");
     let cfg = Config::from_yaml("secret.yaml".to_string()).unwrap();
-    let cd_client = CexDexClient::new(
-        cfg.cex_dex_config.base_url,
-        cfg.cex_dex_config.user,
-        cfg.cex_dex_config.pass,
-    );
+
     let mut sl_client = slackclient::client::Client::new();
     match cfg.slack_client_config.webhooks {
         None => panic!("empty slack webhooks"),
@@ -34,7 +25,32 @@ async fn monitor() {
         }
     }
 
-    println!("starting loop...");
+    let mut awaits = Vec::new();
+    for v in cfg.cex_dex_config.iter() {
+        let aw = monitor(&v, &sl_client);
+        awaits.push(aw);
+    }
+
+    loop {
+        match awaits.pop() {
+            None => break,
+            Some(aw) => {
+                aw.await;
+            }
+        }
+    }
+}
+
+async fn monitor(cex_dex_cfg: &CexDexConfig, sl_client: &slackclient::client::Client) {
+    let mut last_notified_state: String = String::from("");
+
+    let cd_client = CexDexClient::new(
+        cex_dex_cfg.base_url.clone(),
+        cex_dex_cfg.user.clone(),
+        cex_dex_cfg.pass.clone(),
+    );
+
+    println!("starting loop..., env: {}", cex_dex_cfg.env);
     loop {
         thread::sleep(Duration::from_secs(5));
         println!("\n{:#?}", chrono::Utc::now().to_rfc3339());
@@ -51,10 +67,7 @@ async fn monitor() {
             println!(
                 "updated fisrt notified state {}\n{}",
                 &last_notified_state,
-                build_state_done_message(
-                    &states.data[states.data.len() - 1],
-                    &cfg.cex_dex_config.env
-                )
+                build_state_done_message(&states.data[states.data.len() - 1], &cex_dex_cfg.env)
             );
         }
 
@@ -73,7 +86,7 @@ async fn monitor() {
             if let Err(e) = sl_client
                 .send_message(
                     String::from("alert-virtual-taker-1"),
-                    String::from(build_state_done_message(state, &cfg.cex_dex_config.env)),
+                    String::from(build_state_done_message(state, &cex_dex_cfg.env)),
                 )
                 .await
             {

@@ -5,7 +5,7 @@ use std::{error::Error, fs};
 
 #[derive(serde::Deserialize)]
 pub struct Config {
-    pub cex_dex_config: CexDexConfig,
+    pub cex_dex_config: Vec<CexDexConfig>,
     pub slack_client_config: slackclient::client::SlackClientConfig,
 }
 

@@ -19,7 +19,7 @@ impl CexDexClient {
         }
     }
 
-    pub async fn get_states(&self) -> Result<Response, Box<dyn Error + Send + Sync>> {
+    pub async fn get_filled_done_states(&self) -> Result<Response, Box<dyn Error + Send + Sync>> {
         let body = self
             .client
             .get(format!("{}/state", self.base_url))
@@ -32,6 +32,28 @@ impl CexDexClient {
             .await?;
 
         let resp: Response = match serde_json::from_str(&body) {
+            Ok(r) => r,
+            Err(e) => {
+                println!("serde_json error {}, body {}", e, &body);
+                return Err(e.into());
+            }
+        };
+
+        Ok(resp)
+    }
+
+    pub async fn get_running_states(&self) -> Result<Response, Box<dyn Error + Send + Sync>> {
+        let body = self
+            .client
+            .get(format!("{}/state", self.base_url))
+            .header(CONTENT_TYPE, "application/json")
+            .basic_auth(&self.user, Some(&self.pass))
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        let resp = match serde_json::from_str(&body) {
             Ok(r) => r,
             Err(e) => {
                 println!("serde_json error {}, body {}", e, &body);

@@ -3,7 +3,7 @@
 mod cexdexclient;
 mod slackclient;
 
-use std::{thread, time::Duration};
+use std::{collections::HashSet, thread, time::Duration};
 
 use crate::cexdexclient::client::*;
 use cex_dex_monitor::{CexDexConfig, Config};
@@ -39,7 +39,8 @@ async fn main() {
 }
 
 async fn monitor(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::client::Client) {
-    let mut last_notified_state: String = String::from("");
+    let mut done_states: HashSet<String> = HashSet::new();
+    let mut_done_states = &mut done_states;
 
     let cd_client = CexDexClient::new(
         cex_dex_cfg.base_url.clone(),
@@ -50,22 +51,32 @@ async fn monitor(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::client::Cli
     println!("starting loop..., env: {}", cex_dex_cfg.env);
     loop {
         thread::sleep(Duration::from_secs(5));
-        println!("\n{:#?}", chrono::Utc::now().to_rfc3339());
+        let now = chrono::Utc::now().to_rfc3339();
 
-        let states = cd_client.get_states().await;
+        let states = cd_client.get_filled_done_states().await;
         if let Err(e) = states {
-            println!("get states error {}", e);
+            println!("{} get states error {}", now, e);
             continue;
         }
         let states = states.unwrap();
 
-        if last_notified_state.len() == 0 && states.data.len() != 0 {
-            last_notified_state = states.data[0].state_id.clone();
+        // insert first time run
+        if mut_done_states.len() == 0 {
+            for i in 0..states.data.len() {
+                let state = &states.data[i];
+                // skips empty state
+                if state.state_id.len() == 0 {
+                    continue;
+                }
+                // insert states
+                mut_done_states.insert(state.state_id.clone());
+            }
             println!(
-                "updated fisrt notified state {}\n{}",
-                &last_notified_state,
-                build_state_done_message(&states.data[0], &cex_dex_cfg.env)
+                "{} first run: inserted {} states",
+                now,
+                mut_done_states.len()
             );
+            continue;
         }
 
         for i in 0..states.data.len() {
@@ -75,11 +86,12 @@ async fn monitor(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::client::Cli
                 continue;
             }
 
-            // check latest
-            if last_notified_state.eq(&state.state_id) {
-                break;
+            // check if exist
+            if !mut_done_states.insert(state.state_id.clone()) {
+                continue;
             }
 
+            // notify new state
             if let Err(e) = sl_client
                 .send_message(
                     String::from("alert-virtual-taker-1"),
@@ -87,13 +99,34 @@ async fn monitor(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::client::Cli
                 )
                 .await
             {
-                println!("send slack client error {}", e);
+                println!("{} send slack client error {}", now, e);
                 continue;
             }
+            println!(
+                "{} env {}, send update of state id {}",
+                now, cex_dex_cfg.env, state.state_id
+            );
+        }
 
-            // update latest
-            last_notified_state = state.state_id.clone();
-            println!("updated last notified state {}", &last_notified_state);
+        // remove old done states - is not in states
+        let mut remove_state_ids: Vec<String> = Vec::new();
+        for v in mut_done_states.iter() {
+            let mut should_remove = true;
+            for i in 0..states.data.len() {
+                let state = &states.data[i];
+                if v.eq(&state.state_id) {
+                    should_remove = false;
+                    break;
+                }
+            }
+            if should_remove {
+                remove_state_ids.push(v.clone());
+            }
+        }
+
+        for id in remove_state_ids {
+            mut_done_states.remove(&id);
+            println!("{} env {}, removed state id {}", now, cex_dex_cfg.env, id);
         }
     }
 }

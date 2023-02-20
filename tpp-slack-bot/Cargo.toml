@@ -1,5 +1,5 @@
 [package]
-name = "binance-bot"
+name = "tpp-slack-bot"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,13 +8,8 @@ edition = "2021"
 [dependencies]
 tokio = { version= "1", features = ["full"] }
 reqwest = { version = "0.11", features = ["json"] }
-hmac = "0.11.0"
-sha2 = "0.9"
-hex = "0.4"
-tokio-tungstenite = {version = "*", features = ["native-tls"]}
 serde = { version = "*", features = ["derive"] }
 serde_json = { version = "*", default-features = false, features = ["alloc"] }
-futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
-anyhow = "*"
 url = "*"
-futures-channel = "*"
+tokio-tungstenite = {version = "*", features = ["native-tls"]}
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"]}

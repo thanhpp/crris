@@ -1,9 +1,11 @@
 use anyhow::{Context, Result};
 use binance_bot::BinanceClient;
-use futures_util::StreamExt;
+use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use tokio::io::AsyncWriteExt;
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::{Receiver, Sender};
 
 #[tokio::main]
 async fn main() {
@@ -68,12 +70,24 @@ impl SlackClient {
 
         println!("ws connected");
 
-        let (write, read) = ws_stream.split();
-        let (stdin_tx, stdin_rx) = futures::mpsc::unbounded();
-        tokio::spawn(read_stdin(stdin_tx));
+        let (mut write, read) = ws_stream.split();
+        let (tx, mut rx): (Sender<String>, Receiver<String>) = mpsc::channel(32);
+
+        tokio::spawn(async move {
+            while let Some(data) = rx.recv().await {
+                let req = SlackSendMessageReq {
+                    channel: String::from("C04N96G28F9"),
+                    text: String::from("value"),
+                };
+                write
+                    .send(serde_json::to_string(&req).unwrap().to_string().into())
+                    .await
+                    .unwrap();
+            }
+        });
 
         read.for_each(|msg| async {
-            let data = match msg {
+            let mut data = match msg {
                 Ok(m) => m.into_data(),
                 Err(e) => {
                     let _ = tokio::io::stdout()
@@ -83,10 +97,16 @@ impl SlackClient {
                 }
             };
 
+            data.push(b'\n');
             if let Err(e) = tokio::io::stdout().write_all(&data).await {
                 println!("write data error {}", e);
                 return;
             }
+
+            tx.clone()
+                .send(String::from_utf8_lossy(&data).to_string())
+                .await
+                .unwrap();
         })
         .await;
 
@@ -108,7 +128,7 @@ mod test {
 
     #[tokio::test]
     async fn test_slack_client() -> Result<(), Box<dyn Error>> {
-        let c = SlackClient::new(env::var("SLACK_TOKEN").unwrap()).await?;
+        let c = SlackClient::new(env::var("TPP_SLACK_BOT").unwrap()).await?;
         println!("slack client created");
         c.handle_ws().await?;
         Ok(())
@@ -159,3 +179,9 @@ struct SlackAckMessage {
 //     "type": "slash_commands",
 //     "accepts_response_payload": true
 //   }
+
+#[derive(Serialize)]
+struct SlackSendMessageReq {
+    pub channel: String,
+    pub text: String,
+}

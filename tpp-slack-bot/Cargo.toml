@@ -13,3 +13,7 @@ serde_json = { version = "*", default-features = false, features = ["alloc"] }
 url = "*"
 tokio-tungstenite = {version = "*", features = ["native-tls"]}
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"]}
+# Support binance signature
+hmac = "0.11.0"
+sha2 = "0.9"
+hex = "0.4"

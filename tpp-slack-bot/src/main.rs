@@ -1,5 +1,6 @@
 use std::env;
 
+mod binanceclient;
 mod slackclient;
 
 use serde::{self, Deserialize};

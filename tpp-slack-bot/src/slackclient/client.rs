@@ -1,6 +1,6 @@
 use std::{error::Error, sync::Arc};
 
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{SinkExt, StreamExt}; // split websocket stream
 use serde::{Deserialize, Serialize};
 use tokio::{
     io::AsyncWriteExt,
@@ -10,7 +10,7 @@ use tokio::{
         Mutex,
     },
 };
-use tokio_tungstenite::{tungstenite::Message, MaybeTlsStream, WebSocketStream}; // split websocket stream
+use tokio_tungstenite::{tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
 #[allow(dead_code)]
 
@@ -77,16 +77,26 @@ impl SlackClient {
                     };
                     let str_data = String::from_utf8(data).unwrap();
                     tokio::io::stdout()
-                        .write(format!("ws received data {}\n", &str_data).as_bytes())
+                        .write(format!("WS RECEIVE DATA {}\n", &str_data).as_bytes())
                         .await
                         .unwrap();
 
-                    let mutex_write = Arc::clone(&arc_write);
-                    let mut write_stream = mutex_write.lock().await;
-                    (*write_stream)
-                        .send(Message::text(&str_data))
-                        .await
-                        .unwrap();
+                    // ack
+                    if let Some(envelope_id) = get_envelope_id(&str_data).await {
+                        let msg = SlackWSWithEnvelopeID {
+                            envelope_id: envelope_id,
+                        };
+                        let mutex_write = Arc::clone(&arc_write);
+                        let mut write_stream = mutex_write.lock().await;
+                        (*write_stream)
+                            .send(Message::text(serde_json::to_string(&msg).unwrap()))
+                            .await
+                            .unwrap();
+                        tokio::io::stdout()
+                            .write(format!("ACK envelope id {}\n", msg.envelope_id).as_bytes())
+                            .await
+                            .unwrap();
+                    }
 
                     tx.clone().send(str_data).await.unwrap();
                 })
@@ -122,13 +132,27 @@ async fn connect_ws(
     if !slack_open_conn_resp.ok {
         panic!("get slack open conn error {}", open_conn_resp_txt);
     }
-    println!("GET WS URL OK");
+    tokio::io::stdout()
+        .write(b"GET WS URL OK \n")
+        .await
+        .unwrap();
 
-    let ws_url = url::Url::parse(&slack_open_conn_resp.url).unwrap();
+    let ws_url = url::Url::parse(&slack_open_conn_resp.url.unwrap()).unwrap();
     let (ws_stream, _) = tokio_tungstenite::connect_async(ws_url).await.unwrap();
-    println!("CONNECT WS OK");
+    tokio::io::stdout()
+        .write(b"CONNECT WS OK \n")
+        .await
+        .unwrap();
 
     ws_stream
+}
+
+async fn get_envelope_id(data: &str) -> Option<String> {
+    if let Ok(msg) = serde_json::from_str::<SlackWSWithEnvelopeID>(data) {
+        return Some(msg.envelope_id);
+    }
+
+    None
 }
 
 #[derive(Serialize)]
@@ -140,7 +164,12 @@ pub struct SlackSendMessageReq {
 #[derive(Deserialize)]
 pub struct SlackOpenConnResp {
     pub ok: bool,
-    pub url: String,
+    pub url: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct SlackWSWithEnvelopeID {
+    pub envelope_id: String,
 }
 
 #[cfg(test)]
@@ -168,10 +197,8 @@ mod tests {
             SlackClient::new(env::var("TPP_SLACK_WS_TOKEN").unwrap(), String::from(""));
         let mut rx = client.get_ws_channel().await;
 
-        let data = rx.recv().await.unwrap();
-        tokio::io::stdout()
-            .write((data + "\n").as_bytes())
-            .await
-            .unwrap();
+        for _ in 0..10 {
+            let _ = rx.recv().await.unwrap();
+        }
     }
 }

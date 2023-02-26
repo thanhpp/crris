@@ -1,5 +1,7 @@
+use core::fmt;
 use hmac::{Hmac, Mac, NewMac};
 use reqwest::header::HeaderMap;
+use serde::{self, Deserialize};
 use std::{
     collections::HashMap,
     error::Error,
@@ -20,7 +22,7 @@ impl BinanceClient {
         }
     }
 
-    pub fn GetOpenOrderService(&self) -> GetOpenOrderService {
+    pub fn get_open_order_service(&self) -> GetOpenOrderService {
         GetOpenOrderService {
             ic: InternalClient {
                 c: reqwest::Client::new(),
@@ -36,13 +38,112 @@ pub struct GetOpenOrderService {
 }
 
 impl GetOpenOrderService {
-    pub async fn Do(&self) -> String {
-        self.ic
+    pub async fn exec(&self) -> Result<Vec<BinanceOrder>, Box<dyn Error>> {
+        let str_resp = self
+            .ic
             .do_get_request_with_signature(
                 String::from("https://api.binance.com/api/v3/openOrders"),
                 &mut HashMap::new(),
             )
-            .await
+            .await?;
+
+        if let Ok(open_orders) = serde_json::from_str::<Vec<BinanceOrder>>(&str_resp) {
+            return Ok(open_orders);
+        }
+
+        Ok(Vec::new())
+    }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct BinanceOrder {
+    #[serde(alias = "symbol")]
+    pub symbol: String,
+    #[serde(alias = "orderId")]
+    pub order_id: i64,
+    #[serde(alias = "orderListId")]
+    pub order_list_id: i64,
+    #[serde(alias = "clientOrderId")]
+    pub client_order_id: String,
+    #[serde(alias = "price")]
+    pub price: String,
+    #[serde(alias = "origQty")]
+    pub orig_qty: String,
+    #[serde(alias = "executedQty")]
+    pub executed_qty: String,
+    #[serde(alias = "cummulativeQuoteQty")]
+    pub cummulative_quote_qty: String,
+    #[serde(alias = "status")]
+    pub status: String,
+    #[serde(alias = "timeInForce")]
+    pub time_in_force: String,
+    #[serde(alias = "type")]
+    pub order_type: String,
+    #[serde(alias = "side")]
+    pub side: String,
+    #[serde(alias = "stopPrice")]
+    pub stop_price: String,
+    #[serde(alias = "icebergQty")]
+    pub iceberg_qty: String,
+    #[serde(alias = "time")]
+    pub time: i64,
+    #[serde(alias = "updateTime")]
+    pub update_time: i64,
+    #[serde(alias = "isWorking")]
+    pub is_working: bool,
+    #[serde(alias = "workingTime")]
+    pub working_time: i64,
+    #[serde(alias = "origQuoteOrderQty")]
+    pub orig_quote_order_qty: String,
+    #[serde(alias = "selfTradePreventionMode")]
+    pub self_trade_prevention_mode: String,
+}
+
+impl fmt::Display for BinanceOrder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "symbol: {}
+order_id: {}
+order_list_id: {}
+client_order_id: {}
+price: {}
+orig_qty: {}
+executed_qty: {}
+cummulative_quote_qty: {}
+status: {}
+time_in_force: {}
+order_type: {}
+side: {}
+stop_price: {}
+iceberg_qty: {}
+time: {}
+update_time: {}
+is_working: {}
+working_time: {}
+orig_quote_order_qty: {}
+self_trade_prevention_mode: {}\n",
+            self.symbol,
+            self.order_id,
+            self.order_list_id,
+            self.client_order_id,
+            self.price,
+            self.orig_qty,
+            self.executed_qty,
+            self.cummulative_quote_qty,
+            self.status,
+            self.time_in_force,
+            self.order_type,
+            self.side,
+            self.stop_price,
+            self.iceberg_qty,
+            self.time,
+            self.update_time,
+            self.is_working,
+            self.working_time,
+            self.orig_quote_order_qty,
+            self.self_trade_prevention_mode,
+        )
     }
 }
 
@@ -91,7 +192,7 @@ impl InternalClient {
         &self,
         request_url: String,
         params: &mut HashMap<String, String>,
-    ) -> String {
+    ) -> Result<String, Box<dyn Error>> {
         params.insert(String::from("timestamp"), self.gen_timestamp_param());
 
         // build param string
@@ -107,27 +208,27 @@ impl InternalClient {
         }
 
         // gen signature
-        let signature = self.gen_signature(&param_string).unwrap();
+        let signature = self.gen_signature(&param_string)?;
         param_string.push_str(format!("&signature={}", signature).as_str());
 
         let send_url = format!("{}?{}", request_url, param_string);
         tokio::io::stdout()
             .write(format!("created binance send_url {}\n", &send_url).as_bytes())
-            .await
-            .unwrap();
+            .await?;
 
         // add headers
         let mut headers = HeaderMap::new();
         self.insert_api_key_header(&mut headers);
 
-        self.c
+        let resp = self
+            .c
             .get(send_url)
             .headers(headers)
             .send()
-            .await
-            .unwrap()
+            .await?
             .text()
-            .await
-            .unwrap()
+            .await?;
+
+        Ok(resp)
     }
 }

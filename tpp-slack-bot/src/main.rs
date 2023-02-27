@@ -1,12 +1,14 @@
 mod binanceclient;
+mod config;
 mod slackclient;
-use binanceclient::client::{BinanceClient, BinanceOrder};
+mod tokiolog;
+
+use binanceclient::client::{AccountInfoResp, BinanceClient, BinanceOrder};
 use config::TPPSlackBotConfig;
 use serde::{self, Deserialize};
 use serde_json;
 use slackclient::client::{SlackClient, SlackSendMessageReq};
 use tokio::{self, io::AsyncWriteExt};
-mod config;
 
 #[tokio::main]
 async fn main() {
@@ -29,10 +31,8 @@ async fn main() {
         }
 
         let slash_command_msg = serde_json::from_str::<SlackWSSlashCommandMsg>(&data).unwrap();
-        tokio::io::stdout()
-            .write(format!("SLACK SLASH COMMAND\n {:?}\n", slash_command_msg).as_bytes())
-            .await
-            .unwrap();
+        tokiolog::logger::log_info(format!("SLACK SLASH COMMAND\n {:?}\n", slash_command_msg))
+            .await;
 
         match slash_command_msg.payload.command.as_str() {
             "/openorders" => {
@@ -58,9 +58,39 @@ async fn main() {
                     .await
                     .unwrap();
             }
+            "/cexbalances" => {
+                handle_cex_balances(
+                    &b_client,
+                    &slash_command_msg.payload.response_url,
+                    &slash_command_msg.payload.channel_id,
+                )
+                .await
+            }
             _ => {}
         }
     }
+}
+
+async fn handle_cex_balances(b_client: &BinanceClient, response_url: &str, channel: &str) {
+    let account_info = b_client.get_account_info_service().exec().await.unwrap();
+
+    let post_response = reqwest::Client::new()
+        .post(url::Url::parse(response_url).unwrap())
+        .body(
+            serde_json::to_string(&SlackSendMessageReq {
+                channel: String::from(channel),
+                text: stringtify_cex_balances(&account_info),
+            })
+            .unwrap(),
+        )
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+
+    tokiolog::logger::log_info(format!("POST RESPONSE {}\n", post_response)).await;
 }
 
 fn get_slack_ws_msg_type(data: &str) -> Option<String> {
@@ -81,6 +111,24 @@ fn stringtify_binance_orders(v: &Vec<BinanceOrder>) -> String {
     }
 
     str_resp
+}
+
+fn stringtify_cex_balances(acc_info: &AccountInfoResp) -> String {
+    let mut resp = String::new();
+
+    for b in &acc_info.balances {
+        let free = match b.free.parse::<f64>() {
+            Ok(f) => f,
+            Err(_) => 0.0,
+        };
+        if free == 0.0 {
+            continue;
+        }
+
+        resp.push_str(format!("{}: free {}  || locked: {}\n", b.asset, b.free, b.locked).as_str());
+    }
+
+    resp
 }
 
 #[derive(Deserialize, Debug)]

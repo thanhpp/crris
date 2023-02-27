@@ -7,14 +7,17 @@ edition = "2021"
 
 [dependencies]
 tokio = { version= "1", features = ["full"] }
+tokio-tungstenite = {version = "*", features = ["native-tls"]}
+tokio-trace = "*"
 reqwest = { version = "0.11", features = ["json"] }
 serde = { version = "*", features = ["derive"] }
 serde_json = { version = "*", default-features = false, features = ["alloc"] }
 serde_yaml = "0.9"
 url = "*"
-tokio-tungstenite = {version = "*", features = ["native-tls"]}
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"]}
 # Support binance signature
 hmac = "0.11.0"
 sha2 = "0.9"
 hex = "0.4"
+# Time Support
+chrono = "*"

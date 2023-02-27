@@ -12,6 +12,8 @@ use tokio::{
 };
 use tokio_tungstenite::{tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
+use crate::tokiolog;
+
 #[allow(dead_code)]
 
 pub struct SlackClient {
@@ -76,10 +78,7 @@ impl SlackClient {
                         }
                     };
                     let str_data = String::from_utf8(data).unwrap();
-                    tokio::io::stdout()
-                        .write(format!("WS RECEIVE DATA {}\n", &str_data).as_bytes())
-                        .await
-                        .unwrap();
+                    tokiolog::logger::log_info(format!("WS RECEIVE DATA {}\n", &str_data)).await;
 
                     // ack
                     if let Some(envelope_id) = get_envelope_id(&str_data).await {

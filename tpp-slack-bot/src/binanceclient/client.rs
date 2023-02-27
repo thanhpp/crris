@@ -1,7 +1,7 @@
 use core::fmt;
 use hmac::{Hmac, Mac, NewMac};
 use reqwest::header::HeaderMap;
-use serde::{self, Deserialize};
+use serde::{self, Deserialize, Serialize};
 use std::{
     collections::HashMap,
     error::Error,
@@ -24,6 +24,16 @@ impl BinanceClient {
 
     pub fn get_open_order_service(&self) -> GetOpenOrderService {
         GetOpenOrderService {
+            ic: InternalClient {
+                c: reqwest::Client::new(),
+                api_key: self.api_key.clone(),
+                secret_key: self.secret_key.clone(),
+            },
+        }
+    }
+
+    pub fn get_account_info_service(&self) -> GetAccountService {
+        GetAccountService {
             ic: InternalClient {
                 c: reqwest::Client::new(),
                 api_key: self.api_key.clone(),
@@ -147,6 +157,87 @@ self_trade_prevention_mode: {}\n",
     }
 }
 
+pub struct GetAccountService {
+    ic: InternalClient,
+}
+
+impl GetAccountService {
+    pub async fn exec(&self) -> Result<AccountInfoResp, Box<dyn Error>> {
+        let str_resp = self
+            .ic
+            .do_get_request_with_signature(
+                String::from("https://api.binance.com/api/v3/account"),
+                &mut HashMap::new(),
+            )
+            .await?;
+
+        tokio::io::stdout()
+            .write(&str_resp.as_bytes())
+            .await
+            .unwrap();
+
+        if str_resp.len() == 0 {
+            return Err("0 length string response".into());
+        }
+
+        match serde_json::from_str::<AccountInfoResp>(&str_resp) {
+            Ok(resp) => {
+                return Ok(resp);
+            }
+            Err(e) => {
+                return Err(e.into());
+            }
+        };
+    }
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AccountInfoResp {
+    #[serde(alias = "makerCommission")]
+    pub maker_commission: i64,
+    #[serde(alias = "takerCommission")]
+    pub taker_commission: i64,
+    #[serde(alias = "buyerCommission")]
+    pub buyer_commission: i64,
+    #[serde(alias = "sellerCommission")]
+    pub seller_commission: i64,
+    #[serde(alias = "commissionRates")]
+    pub commission_rates: CommissionRates,
+    #[serde(alias = "canTrade")]
+    pub can_trade: bool,
+    #[serde(alias = "canWithdraw")]
+    pub can_withdraw: bool,
+    #[serde(alias = "canDeposit")]
+    pub can_deposit: bool,
+    #[serde(alias = "brokered")]
+    pub brokered: bool,
+    #[serde(alias = "requireSelfTradePrevention")]
+    pub require_self_trade_prevention: bool,
+    #[serde(alias = "updateTime")]
+    pub update_time: i64,
+    #[serde(alias = "accountType")]
+    pub account_type: String,
+    #[serde(alias = "balances")]
+    pub balances: Vec<Balance>,
+    #[serde(alias = "permissions")]
+    pub permissions: Vec<String>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CommissionRates {
+    pub maker: String,
+    pub taker: String,
+    pub buyer: String,
+    pub seller: String,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Balance {
+    pub asset: String,
+    pub free: String,
+    pub locked: String,
+}
+
 struct InternalClient {
     c: reqwest::Client,
     api_key: String,
@@ -163,7 +254,7 @@ impl InternalClient {
         let timestamp = self
             .get_timestamp(
                 SystemTime::now()
-                    .checked_sub(Duration::from_secs_f64(2.0))
+                    .checked_sub(Duration::from_secs_f64(3.0))
                     .unwrap(),
             )
             .unwrap();

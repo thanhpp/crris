@@ -9,6 +9,7 @@ use tokio::{
         mpsc::{Receiver, Sender},
         Mutex,
     },
+    time,
 };
 use tokio_tungstenite::{tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
@@ -22,6 +23,7 @@ pub struct SlackClient {
     http_client: reqwest::Client,
 }
 
+#[allow(dead_code)]
 impl SlackClient {
     pub fn new(ws_token: String, api_token: String) -> SlackClient {
         SlackClient {
@@ -63,23 +65,72 @@ impl SlackClient {
             loop {
                 let ws = connect_ws(&client, &ws_token).await;
                 tokio::io::stdout().write(b"connected ws \n").await.unwrap();
-                let (mut write, read) = ws.split();
+                let (mut write, mut read) = ws.split();
                 let arc_write = Arc::new(Mutex::new(&mut write));
 
-                read.for_each(|item| async {
-                    let data = match item {
-                        Ok(it) => it.into_data(),
-                        Err(e) => {
-                            tokio::io::stdout()
-                                .write(format!("read data error: {}\n", e).as_bytes())
-                                .await
-                                .unwrap();
-                            return;
+                // read.for_each(|item| async {
+                //     let data = match item {
+                //         Ok(it) => it.into_data(),
+                //         Err(e) => {
+                //             tokio::io::stdout()
+                //                 .write(format!("read data error: {}\n", e).as_bytes())
+                //                 .await
+                //                 .unwrap();
+                //             return;
+                //         }
+                //     };
+                //     let str_data = String::from_utf8(data).unwrap();
+                //     tokiolog::logger::log_info(format!("WS RECEIVE DATA {}\n", &str_data)).await;
+
+                //     // ack
+                //     if let Some(envelope_id) = get_envelope_id(&str_data).await {
+                //         let msg = SlackWSWithEnvelopeID {
+                //             envelope_id: envelope_id,
+                //         };
+                //         {
+                //             let mutex_write = Arc::clone(&arc_write);
+                //             let mut write_stream = mutex_write.lock().await;
+                //             (*write_stream)
+                //                 .send(Message::text(serde_json::to_string(&msg).unwrap()))
+                //                 .await
+                //                 .unwrap();
+                //         } // early unlock
+                //         tokiolog::logger::log_info(format!(
+                //             "ACK envelope id {}\n",
+                //             msg.envelope_id
+                //         ))
+                //         .await;
+                //     }
+
+                //     tx.clone().send(str_data).await.unwrap();
+                // })
+                // .await;
+
+                loop {
+                    let sleep = time::sleep(time::Duration::from_secs(60));
+                    tokio::pin!(sleep);
+                    let item = tokio::select! {
+                        v = read.next() => {
+                            match v {
+                                Some(x) => match x {
+                                    Ok(ok) => ok.into_data(),
+                                    Err(_) => {
+                                        break;
+                                    }
+                                },
+                                None => {
+                                    break;
+                                }
+                            }
+                        }
+                        _ = &mut sleep => {
+                            break;
                         }
                     };
-                    let str_data = String::from_utf8(data).unwrap();
-                    tokiolog::logger::log_info(format!("WS RECEIVE DATA {}\n", &str_data)).await;
 
+                    let str_data = String::from_utf8(item).unwrap();
+
+                    tokiolog::logger::log_info(format!("WS RECEIVE DATA {}\n", &str_data)).await;
                     // ack
                     if let Some(envelope_id) = get_envelope_id(&str_data).await {
                         let msg = SlackWSWithEnvelopeID {
@@ -91,16 +142,15 @@ impl SlackClient {
                             .send(Message::text(serde_json::to_string(&msg).unwrap()))
                             .await
                             .unwrap();
-                        tokio::io::stdout()
-                            .write(format!("ACK envelope id {}\n", msg.envelope_id).as_bytes())
-                            .await
-                            .unwrap();
-                    }
+                        tokiolog::logger::log_info(format!(
+                            "ACK envelope id {}\n",
+                            msg.envelope_id
+                        ))
+                        .await;
 
-                    tx.clone().send(str_data).await.unwrap();
-                })
-                .await;
-
+                        tx.clone().send(str_data).await.unwrap();
+                    };
+                }
                 tokio::io::stdout()
                     .write(b"ws loop ended \n")
                     .await

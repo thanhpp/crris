@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::{binanceclient::client::BinanceClient, *};
-    use std::{env, error::Error};
+    use std::env;
 
     #[tokio::test]
     async fn test_get_open_orders() {

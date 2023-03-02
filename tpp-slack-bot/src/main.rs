@@ -143,6 +143,7 @@ struct SlackWSSlashCommandMsg {
 }
 
 #[derive(Deserialize, Debug)]
+#[allow(dead_code)]
 struct SlackWSSlashCommandPayload {
     token: String,
     team_id: String,

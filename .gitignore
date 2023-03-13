@@ -12,3 +12,4 @@ to-do-cmd/*.json
 
 # secrets
 secret.yaml
+mesage-server/.env

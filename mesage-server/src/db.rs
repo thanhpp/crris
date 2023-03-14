@@ -1,12 +1,9 @@
 use diesel::prelude::*;
+use serde::Serialize;
 
 use crate::schema::messages;
 
-pub fn establish_connection() -> Result<PgConnection, ConnectionError> {
-    PgConnection::establish("postgres://username:password@localhost:5432/demo")
-}
-
-#[derive(Queryable, Insertable)]
+#[derive(Queryable, Insertable, Clone, Serialize)]
 #[diesel(table_name = messages)]
 pub struct Message {
     pub timestamp: i64,
@@ -30,7 +27,11 @@ mod tests {
 
     #[test]
     fn test_create_message() {
-        let mut conn = &mut establish_connection().expect("connect db error");
+        pub fn establish_connection() -> Result<PgConnection, ConnectionError> {
+            PgConnection::establish("postgres://username:password@localhost:5432/demo")
+        }
+
+        let conn = &mut establish_connection().expect("connect db error");
         create_message(
             conn,
             &Message {

@@ -12,6 +12,16 @@
 
 ![](./docs/shared-gg-tasks-flow.png)
 
+### Roadmap
+
+- [ ] Deploy
+- [ ] Build write client
+    - [ ] Update tasks
+- [ ] Merge tasks
+- [ ] Filter by prefix
+- [x] Build read client
+    - [x] Get task list
+    - [x] Get tasks
 ### Refs:
 
 - https://docs.rs/google-tasks1/latest/google_tasks1/

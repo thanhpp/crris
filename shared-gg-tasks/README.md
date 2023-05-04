@@ -10,7 +10,7 @@
 
 ### Flow
 
-![./docs/shared-gg-tasks-flow.png]
+![](./docs/shared-gg-tasks-flow.png)
 
 ### Refs:
 

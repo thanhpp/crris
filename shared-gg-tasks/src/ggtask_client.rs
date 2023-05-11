@@ -35,23 +35,32 @@ impl Client {
         .build()
         .await?;
 
-        Ok(Client {
-            hub: google_tasks1::TasksHub::new(
-                hyper::Client::builder().build(
-                    hyper_rustls::HttpsConnectorBuilder::new()
-                        .with_native_roots()
-                        .https_or_http()
-                        .enable_http1()
-                        .enable_http2()
-                        .build(),
-                ),
-                auth,
+        let hub = google_tasks1::TasksHub::new(
+            hyper::Client::builder().build(
+                hyper_rustls::HttpsConnectorBuilder::new()
+                    .with_native_roots()
+                    .https_or_http()
+                    .enable_http1()
+                    .enable_http2()
+                    .build(),
             ),
-        })
+            auth,
+        );
+
+        Ok(Client { hub: hub })
     }
 
     pub async fn list_task_lists(&self) -> Result<google_tasks1::api::TaskLists> {
-        let resp = self.hub.tasklists().list().doit().await?;
+        let resp = self
+            .hub
+            .tasklists()
+            .list()
+            .add_scopes(vec![
+                google_tasks1::api::Scope::Full,
+                google_tasks1::api::Scope::Readonly,
+            ])
+            .doit()
+            .await?;
         let resp_body = resp.0;
 
         if resp_body.status().ne(&StatusCode::OK) {
@@ -61,14 +70,20 @@ impl Client {
         Ok(resp.1)
     }
 
-    pub async fn list_tasks(&self, task_list_id: &str) -> Result<Vec<google_tasks1::api::Task>> {
-        let resp = self
-            .hub
-            .tasks()
-            .list(task_list_id)
-            .show_deleted(false)
-            .doit()
-            .await?;
+    pub async fn list_tasks(
+        &self,
+        task_list_id: &str,
+        due_min: Option<&str>,
+    ) -> Result<Vec<google_tasks1::api::Task>> {
+        let mut req = self.hub.tasks().list(task_list_id).max_results(100);
+
+        if let Some(t) = due_min {
+            req = req.due_min(t);
+        }
+
+        req = req.show_completed(true).show_hidden(true);
+
+        let resp = req.doit().await?;
 
         if let Err(e) = Self::check_resp(&resp.0, "list tasks") {
             return Err(e);
@@ -85,7 +100,10 @@ impl Client {
                 .hub
                 .tasks()
                 .list(task_list_id)
+                .show_completed(true)
+                .show_hidden(true)
                 .page_token(&token)
+                .max_results(100)
                 .doit()
                 .await?;
 
@@ -102,6 +120,38 @@ impl Client {
         }
 
         Ok(tasks)
+    }
+
+    pub async fn create_task(&self, task_list: &str, title: &str, due: &str) -> Result<()> {
+        let resp = self
+            .hub
+            .tasks()
+            .insert(
+                google_tasks1::api::Task {
+                    completed: None,
+                    deleted: None,
+                    due: Some(due.to_string()),
+                    etag: None,
+                    hidden: None,
+                    id: None,
+                    kind: None,
+                    links: None,
+                    notes: None,
+                    parent: None,
+                    position: None,
+                    self_link: None,
+                    status: None,
+                    title: Some(title.to_string()),
+                    updated: None,
+                },
+                task_list,
+            )
+            .doit()
+            .await?;
+
+        Self::check_resp(&resp.0, "create task")?;
+
+        Ok(())
     }
 
     fn check_resp(resp_body: &hyper::Response<hyper::body::Body>, op: &str) -> Result<()> {

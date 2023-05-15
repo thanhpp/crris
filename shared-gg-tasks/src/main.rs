@@ -8,16 +8,55 @@ mod ggtask_client;
 async fn main() {
     let client_cfg_file = std::env::var("CLIENT_CONFIG_FILE").unwrap();
 
-    let t_client = ggtask_client::Client::new(&client_cfg_file).await.unwrap();
+    let t_client1 = ggtask_client::Client::new(&client_cfg_file).await.unwrap();
+    let hm_tasks1 = match build_tasks_map(&t_client1, "My Tasks", "vta").await {
+        Ok(m) => m,
+        Err(_) => {
+            let task_lists = t_client1.list_task_lists().await.unwrap();
+            let list_id = ggtask_client::find_list_id_by_title(&task_lists, "My Tasks").unwrap();
+            (list_id, HashMap::new())
+        }
+    };
 
-    let hm_tasks1 = build_tasks_map(&t_client, "TODO", "Kyber").await.unwrap();
+    let t_client2 = ggtask_client::Client::new(&client_cfg_file).await.unwrap();
+    let hm_tasks2 = match build_tasks_map(&t_client2, "TODO", "vta").await {
+        Ok(m) => m,
+        Err(_) => {
+            let task_lists = t_client2.list_task_lists().await.unwrap();
+            let list_id = ggtask_client::find_list_id_by_title(&task_lists, "TODO").unwrap();
+            (list_id, HashMap::new())
+        }
+    };
+
+    let actions = match merge_tasks(&hm_tasks1.1, &hm_tasks2.1) {
+        Ok(a) => a,
+        Err(_) => Vec::new(),
+    };
+
+    for (t, act) in actions.iter() {
+        match t_client1
+            .create_task(
+                &hm_tasks1.0,
+                t.title.as_ref().unwrap(),
+                t.due.as_ref().unwrap(),
+            )
+            .await
+        {
+            Ok(_) => {
+                println!("created OK")
+            }
+            Err(e) => {
+                println!("create task error {e}")
+            }
+        }
+    }
 }
 
 async fn build_tasks_map(
     c: &ggtask_client::Client,
     list: &str,
     prefix: &str,
-) -> anyhow::Result<HashMap<String, google_tasks1::api::Task>> {
+) -> anyhow::Result<(String, HashMap<String, google_tasks1::api::Task>)> {
     // get the list id
     let task_lists = c.list_task_lists().await?;
     let list_id = ggtask_client::find_list_id_by_title(&task_lists, list)?;
@@ -60,7 +99,7 @@ async fn build_tasks_map(
         hm.insert(title.to_owned(), t);
     }
 
-    Ok(hm)
+    Ok((list_id, hm))
 }
 
 fn get_prefix(title: &str) -> Option<String> {
@@ -83,6 +122,7 @@ fn get_prefix(title: &str) -> Option<String> {
     return Some(prefix);
 }
 
+#[derive(Debug, Clone, PartialEq)]
 enum Action {
     Add,
     Update,
@@ -91,13 +131,14 @@ enum Action {
     Uncomplete,
 }
 
-// m2 = dest, m1 = src. Update the m2 to have the same task as m1
+// m2 = src, m1 = dest. Update the m1 to have the same task as m2
 fn merge_tasks(
     m1: &HashMap<String, google_tasks1::api::Task>,
     m2: &HashMap<String, google_tasks1::api::Task>,
 ) -> anyhow::Result<Vec<(google_tasks1::api::Task, Action)>> {
     let mut v1: Vec<(google_tasks1::api::Task, Action)> = Vec::new();
     for (t2_title, t2) in m2.iter() {
+        println!("working {}", t2_title);
         if let Some(deleted) = t2.deleted {
             if deleted {
                 continue;
@@ -106,6 +147,7 @@ fn merge_tasks(
 
         let t1 = match m1.get(t2_title) {
             None => {
+                println!("new task {:#?}", t2);
                 v1.push((
                     google_tasks1::api::Task {
                         completed: t2.completed.clone(),
@@ -158,5 +200,5 @@ fn merge_tasks(
         }
     }
 
-    Ok(Vec::new())
+    Ok(v1)
 }

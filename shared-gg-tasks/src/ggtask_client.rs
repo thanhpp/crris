@@ -123,6 +123,7 @@ impl Client {
     }
 
     pub async fn create_task(&self, task_list: &str, title: &str, due: &str) -> Result<()> {
+        println!("creating {} {} {}", task_list, title, due);
         let resp = self
             .hub
             .tasks()

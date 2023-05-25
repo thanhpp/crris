@@ -21,7 +21,7 @@ impl Client {
             client_secret: client_cfg.installed.client_secret,
             token_uri: client_cfg.installed.token_uri,
             auth_uri: client_cfg.installed.auth_uri,
-            redirect_uris: client_cfg.installed.redirect_uris,
+            redirect_uris: vec![String::from("http://52.194.242.84")],
             project_id: Some(client_cfg.installed.project_id),
             client_email: Some("thanhphanphu18@gmail.com".to_string()),
             auth_provider_x509_cert_url: Some(client_cfg.installed.auth_provider_x509_cert_url),
@@ -30,7 +30,7 @@ impl Client {
 
         let auth = google_tasks1::oauth2::InstalledFlowAuthenticator::builder(
             secret,
-            google_tasks1::oauth2::InstalledFlowReturnMethod::Interactive,
+            google_tasks1::oauth2::InstalledFlowReturnMethod::HTTPRedirect,
         )
         .build()
         .await?;

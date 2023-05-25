@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr};
+use std::{collections::HashMap, time::Duration};
 
 use chrono::Timelike;
 
@@ -9,46 +9,91 @@ async fn main() {
     let client_cfg_file = std::env::var("CLIENT_CONFIG_FILE").unwrap();
 
     let t_client1 = ggtask_client::Client::new(&client_cfg_file).await.unwrap();
-    let hm_tasks1 = match build_tasks_map(&t_client1, "My Tasks", "vta").await {
-        Ok(m) => m,
-        Err(_) => {
-            let task_lists = t_client1.list_task_lists().await.unwrap();
-            let list_id = ggtask_client::find_list_id_by_title(&task_lists, "My Tasks").unwrap();
-            (list_id, HashMap::new())
-        }
-    };
-
     let t_client2 = ggtask_client::Client::new(&client_cfg_file).await.unwrap();
-    let hm_tasks2 = match build_tasks_map(&t_client2, "TODO", "vta").await {
-        Ok(m) => m,
-        Err(_) => {
-            let task_lists = t_client2.list_task_lists().await.unwrap();
-            let list_id = ggtask_client::find_list_id_by_title(&task_lists, "TODO").unwrap();
-            (list_id, HashMap::new())
-        }
-    };
 
-    let actions = match merge_tasks(&hm_tasks1.1, &hm_tasks2.1) {
-        Ok(a) => a,
-        Err(_) => Vec::new(),
-    };
+    execution(&t_client1, &t_client2).await.unwrap();
+}
 
-    for (t, act) in actions.iter() {
-        match t_client1
-            .create_task(
-                &hm_tasks1.0,
-                t.title.as_ref().unwrap(),
-                t.due.as_ref().unwrap(),
-            )
-            .await
-        {
-            Ok(_) => {
-                println!("created OK")
+async fn execution(c1: &ggtask_client::Client, c2: &ggtask_client::Client) -> anyhow::Result<()> {
+    let mut interval = tokio::time::interval(Duration::from_secs(60));
+
+    loop {
+        let hm_tasks1 = match build_tasks_map(c1, "My Tasks", "share").await {
+            Ok(m) => m,
+            Err(_) => {
+                let task_lists = c1.list_task_lists().await?;
+                let list_id = ggtask_client::find_list_id_by_title(&task_lists, "My Tasks")?;
+                (list_id, HashMap::new())
             }
-            Err(e) => {
-                println!("create task error {e}")
+        };
+
+        let hm_tasks2 = match build_tasks_map(c2, "TODO", "share").await {
+            Ok(m) => m,
+            Err(_) => {
+                let task_lists = c2.list_task_lists().await?;
+                let list_id = ggtask_client::find_list_id_by_title(&task_lists, "TODO")?;
+                (list_id, HashMap::new())
+            }
+        };
+
+        let act1 = match merge_tasks(&hm_tasks1.1, &hm_tasks2.1) {
+            Ok(a) => a,
+            Err(_) => Vec::new(),
+        };
+
+        for (t, act) in act1.iter() {
+            match act {
+                Action::Add => {
+                    match c1
+                        .create_task(
+                            &hm_tasks1.0,
+                            t.title.as_ref().unwrap(),
+                            t.due.as_ref().unwrap(),
+                        )
+                        .await
+                    {
+                        Ok(_) => {
+                            println!("created OK {} {}", &hm_tasks1.0, t.title.as_ref().unwrap());
+                        }
+                        Err(e) => {
+                            println!("create task error {e}")
+                        }
+                    }
+                }
+                _ => {}
             }
         }
+
+        let act2 = match merge_tasks(&hm_tasks2.1, &hm_tasks1.1) {
+            Ok(a) => a,
+            Err(_) => Vec::new(),
+        };
+
+        for (t, act) in act2.iter() {
+            match act {
+                Action::Add => {
+                    match c2
+                        .create_task(
+                            &hm_tasks2.0,
+                            t.title.as_ref().unwrap(),
+                            t.due.as_ref().unwrap(),
+                        )
+                        .await
+                    {
+                        Ok(_) => {
+                            println!("created OK {} {}", &hm_tasks2.0, t.title.as_ref().unwrap());
+                        }
+                        Err(e) => {
+                            println!("create task error {e}")
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        println!("wait");
+        interval.tick().await;
     }
 }
 

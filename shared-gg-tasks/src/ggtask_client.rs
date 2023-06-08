@@ -21,7 +21,7 @@ impl Client {
             client_secret: client_cfg.installed.client_secret,
             token_uri: client_cfg.installed.token_uri,
             auth_uri: client_cfg.installed.auth_uri,
-            redirect_uris: vec![String::from("http://52.194.242.84")],
+            redirect_uris: client_cfg.installed.redirect_uris,
             project_id: Some(client_cfg.installed.project_id),
             client_email: Some("thanhphanphu18@gmail.com".to_string()),
             auth_provider_x509_cert_url: Some(client_cfg.installed.auth_provider_x509_cert_url),
@@ -47,7 +47,7 @@ impl Client {
             auth,
         );
 
-        Ok(Client { hub: hub })
+        Ok(Client { hub })
     }
 
     pub async fn list_task_lists(&self) -> Result<google_tasks1::api::TaskLists> {
@@ -85,9 +85,7 @@ impl Client {
 
         let resp = req.doit().await?;
 
-        if let Err(e) = Self::check_resp(&resp.0, "list tasks") {
-            return Err(e);
-        }
+        Self::check_resp(&resp.0, "list tasks")?;
 
         let mut tasks = match resp.1.items {
             None => return Ok(vec![]),
@@ -107,9 +105,7 @@ impl Client {
                 .doit()
                 .await?;
 
-            if let Err(e) = Self::check_resp(&resp.0, "list tasks by page token") {
-                return Err(e);
-            }
+            Self::check_resp(&resp.0, "list tasks by page token")?;
 
             match resp.1.items {
                 None => return Ok(tasks),
@@ -151,6 +147,45 @@ impl Client {
             .await?;
 
         Self::check_resp(&resp.0, "create task")?;
+
+        Ok(())
+    }
+
+    pub async fn complete_task(
+        &self,
+        task_list: &str,
+        task_id: &str,
+        completed: &str,
+    ) -> Result<()> {
+        println!("completing task {} {}", task_list, task_id);
+        let resp = self
+            .hub
+            .tasks()
+            .update(
+                google_tasks1::api::Task {
+                    completed: Some(String::from(completed)),
+                    deleted: None,
+                    due: None,
+                    etag: None,
+                    hidden: None,
+                    id: None,
+                    kind: None,
+                    links: None,
+                    notes: None,
+                    parent: None,
+                    position: None,
+                    self_link: None,
+                    status: None,
+                    title: None,
+                    updated: None,
+                },
+                task_list,
+                task_id,
+            )
+            .doit()
+            .await?;
+
+        Self::check_resp(&resp.0, "complete task")?;
 
         Ok(())
     }

@@ -38,63 +38,91 @@ async fn execution(c1: &ggtask_client::Client, c2: &ggtask_client::Client) -> an
 
         let act1 = match merge_tasks(&hm_tasks1.1, &hm_tasks2.1) {
             Ok(a) => a,
-            Err(_) => Vec::new(),
+            Err(e) => {
+                eprintln!("merge tasks 1 <- 2 error {e}");
+                continue;
+            }
         };
 
-        for (t, act) in act1.iter() {
-            match act {
-                Action::Add => {
-                    match c1
-                        .create_task(
-                            &hm_tasks1.0,
-                            t.title.as_ref().unwrap(),
-                            t.due.as_ref().unwrap(),
-                        )
-                        .await
-                    {
-                        Ok(_) => {
-                            println!("created OK {} {}", &hm_tasks1.0, t.title.as_ref().unwrap());
-                        }
-                        Err(e) => {
-                            println!("create task error {e}")
-                        }
-                    }
-                }
-                _ => {}
+        match sync_tasks(c1, &hm_tasks1.0, act1).await {
+            Ok(()) => {
+                println!("sync task c1 ok");
+            }
+            Err(e) => {
+                eprintln!("sync task c1 error: {e}")
             }
         }
 
         let act2 = match merge_tasks(&hm_tasks2.1, &hm_tasks1.1) {
             Ok(a) => a,
-            Err(_) => Vec::new(),
+            Err(e) => {
+                eprintln!("merge tasks 2 <- 1 error {e}");
+                continue;
+            }
         };
 
-        for (t, act) in act2.iter() {
-            match act {
-                Action::Add => {
-                    match c2
-                        .create_task(
-                            &hm_tasks2.0,
-                            t.title.as_ref().unwrap(),
-                            t.due.as_ref().unwrap(),
-                        )
-                        .await
-                    {
-                        Ok(_) => {
-                            println!("created OK {} {}", &hm_tasks2.0, t.title.as_ref().unwrap());
-                        }
-                        Err(e) => {
-                            println!("create task error {e}")
-                        }
-                    }
-                }
-                _ => {}
+        match sync_tasks(c2, &hm_tasks2.0, act2).await {
+            Ok(()) => {
+                println!("sync task c2 ok");
+            }
+            Err(e) => {
+                eprintln!("sync task c2 error: {e}")
             }
         }
 
         println!("wait");
         interval.tick().await;
     }
+}
+
+// sync_tasks
+// actions: actions need to do to with c.
+async fn sync_tasks(
+    c: &ggtask_client::Client,
+    task_list_id: &str,
+    actions: Vec<(google_tasks1::api::Task, Action)>,
+) -> anyhow::Result<()> {
+    for (t, act) in actions.iter() {
+        match act {
+            Action::Add => match c
+                .create_task(
+                    task_list_id,
+                    t.title.as_ref().unwrap(),
+                    t.due.as_ref().unwrap(),
+                )
+                .await
+            {
+                Ok(()) => {
+                    println!("new task created");
+                }
+                Err(e) => {
+                    eprintln!("create task error {e}");
+                }
+            },
+            Action::Complete => {
+                match c
+                    .complete_task(
+                        task_list_id,
+                        t.id.as_ref().unwrap(),
+                        t.completed.as_ref().unwrap(),
+                    )
+                    .await
+                {
+                    Ok(()) => {
+                        println!("completed task")
+                    }
+                    Err(e) => {
+                        eprintln!("complete task error {e}")
+                    }
+                }
+            }
+            _ => {
+                println!("action not supported {:#?}", act)
+            }
+        }
+    }
+
+    Ok(())
 }
 
 async fn build_tasks_map(
@@ -164,13 +192,12 @@ fn get_prefix(title: &str) -> Option<String> {
 
     let prefix = String::from(&title[1..prefix_end]);
 
-    return Some(prefix);
+    Some(prefix)
 }
 
 #[derive(Debug, Clone, PartialEq)]
 enum Action {
     Add,
-    Update,
     Delete,
     Complete,
     Uncomplete,
@@ -225,22 +252,26 @@ fn merge_tasks(
         let t1_updated = chrono::DateTime::parse_from_rfc3339(t1.updated.as_ref().unwrap())?;
         let t2_updated = chrono::DateTime::parse_from_rfc3339(t2.updated.as_ref().unwrap())?;
 
-        if t2_updated.gt(&t1_updated) {
+        if t2_updated.lt(&t1_updated) {
             continue;
         }
 
-        if t2.deleted.is_none() && t1.deleted.is_some() {
-            v1.push((t2.clone(), Action::Delete));
-            continue;
-        }
-
-        if t2.completed.is_none() && t1.completed.is_some() {
-            v1.push((t2.clone(), Action::Complete));
+        if t2.deleted.is_some() && t1.deleted.is_none() {
+            v1.push((t1.clone(), Action::Delete));
             continue;
         }
 
         if t2.completed.is_some() && t1.completed.is_none() {
-            v1.push((t2.clone(), Action::Uncomplete));
+            let mut t = t1.clone();
+            t.completed = t2.completed.clone();
+            v1.push((t, Action::Complete));
+            continue;
+        }
+
+        if t2.completed.is_none() && t1.completed.is_some() {
+            let mut t = t1.clone();
+            t.completed = t2.completed.clone();
+            v1.push((t, Action::Uncomplete));
             continue;
         }
     }

@@ -30,7 +30,7 @@ impl Client {
 
         let auth = google_tasks1::oauth2::InstalledFlowAuthenticator::builder(
             secret,
-            google_tasks1::oauth2::InstalledFlowReturnMethod::HTTPRedirect,
+            google_tasks1::oauth2::InstalledFlowReturnMethod::Interactive,
         )
         .build()
         .await?;

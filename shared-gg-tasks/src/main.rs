@@ -4,6 +4,10 @@ use chrono::Timelike;
 
 mod ggtask_client;
 
+const CLIENT_1_TASK_LIST_NAME: &str = "My Tasks";
+const CLIENT_2_TASK_LIST_NAME: &str = "TODO";
+const SHARE_PREFIX: &str = "share";
+
 #[tokio::main]
 async fn main() {
     let client_cfg_file = std::env::var("CLIENT_CONFIG_FILE").unwrap();
@@ -18,20 +22,22 @@ async fn execution(c1: &ggtask_client::Client, c2: &ggtask_client::Client) -> an
     let mut interval = tokio::time::interval(Duration::from_secs(60));
 
     loop {
-        let hm_tasks1 = match build_tasks_map(c1, "My Tasks", "share").await {
+        let hm_tasks1 = match build_tasks_map(c1, CLIENT_1_TASK_LIST_NAME, SHARE_PREFIX).await {
             Ok(m) => m,
             Err(_) => {
                 let task_lists = c1.list_task_lists().await?;
-                let list_id = ggtask_client::find_list_id_by_title(&task_lists, "My Tasks")?;
+                let list_id =
+                    ggtask_client::find_list_id_by_title(&task_lists, CLIENT_1_TASK_LIST_NAME)?;
                 (list_id, HashMap::new())
             }
         };
 
-        let hm_tasks2 = match build_tasks_map(c2, "TODO", "share").await {
+        let hm_tasks2 = match build_tasks_map(c2, CLIENT_2_TASK_LIST_NAME, SHARE_PREFIX).await {
             Ok(m) => m,
             Err(_) => {
                 let task_lists = c2.list_task_lists().await?;
-                let list_id = ggtask_client::find_list_id_by_title(&task_lists, "TODO")?;
+                let list_id =
+                    ggtask_client::find_list_id_by_title(&task_lists, CLIENT_2_TASK_LIST_NAME)?;
                 (list_id, HashMap::new())
             }
         };

@@ -1,5 +1,3 @@
-use std::fs;
-
 use anyhow::{Ok, Result};
 use google_tasks1::hyper_rustls::HttpsConnector;
 use google_tasks1::{hyper, hyper_rustls};
@@ -13,20 +11,8 @@ pub struct Client {
 
 impl Client {
     pub async fn new(config_file: &str) -> Result<Client> {
-        let f_data = fs::read_to_string(config_file)?;
-        let client_cfg: ClientConfig = serde_json::from_str(&f_data)?;
-
-        let secret = google_tasks1::oauth2::ApplicationSecret {
-            client_id: client_cfg.installed.client_id,
-            client_secret: client_cfg.installed.client_secret,
-            token_uri: client_cfg.installed.token_uri,
-            auth_uri: client_cfg.installed.auth_uri,
-            redirect_uris: client_cfg.installed.redirect_uris,
-            project_id: Some(client_cfg.installed.project_id),
-            client_email: Some("thanhphanphu18@gmail.com".to_string()),
-            auth_provider_x509_cert_url: Some(client_cfg.installed.auth_provider_x509_cert_url),
-            client_x509_cert_url: None,
-        };
+        let secret = google_tasks1::oauth2::read_application_secret(config_file).await?;
+        println!("redirect_uris : {:?}", secret.redirect_uris);
 
         let auth = google_tasks1::oauth2::InstalledFlowAuthenticator::builder(
             secret,

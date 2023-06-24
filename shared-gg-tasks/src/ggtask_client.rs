@@ -10,14 +10,14 @@ pub struct Client {
 }
 
 impl Client {
-    pub async fn new(config_file: &str) -> Result<Client> {
+    pub async fn new(config_file: &str, persist_token_file: &str) -> Result<Client> {
         let secret = google_tasks1::oauth2::read_application_secret(config_file).await?;
-        println!("redirect_uris : {:?}", secret.redirect_uris);
 
         let auth = google_tasks1::oauth2::InstalledFlowAuthenticator::builder(
             secret,
             google_tasks1::oauth2::InstalledFlowReturnMethod::Interactive,
         )
+        .persist_tokens_to_disk(persist_token_file)
         .build()
         .await?;
 

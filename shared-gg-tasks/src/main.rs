@@ -12,8 +12,12 @@ const SHARE_PREFIX: &str = "share";
 async fn main() {
     let client_cfg_file = std::env::var("CLIENT_CONFIG_FILE").unwrap();
 
-    let t_client1 = ggtask_client::Client::new(&client_cfg_file).await.unwrap();
-    let t_client2 = ggtask_client::Client::new(&client_cfg_file).await.unwrap();
+    let t_client1 = ggtask_client::Client::new(&client_cfg_file, "token-1.json")
+        .await
+        .unwrap();
+    let t_client2 = ggtask_client::Client::new(&client_cfg_file, "token-2.json")
+        .await
+        .unwrap();
 
     execution(&t_client1, &t_client2).await.unwrap();
 }

@@ -1,0 +1,3 @@
+- https://github.com/chrisgrounds/finance-sheet/blob/main/rust/src/sheets.rs
+- https://medium.com/@iamchrisgrounds/google-sheets-with-rust-6ecab23fa765
+- need to share the sheet with the service account

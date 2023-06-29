@@ -29,3 +29,11 @@ DATE     | Entity   | Name      | Balance (unit1) | Balance (unit2) |
     - [ ] Command parser
     - [ ] Google sheet service write
     - [ ] Google sheet service read
+- Telegram client: https://github.com/teloxide/teloxide
+    - chat with @Botfather to create a new bot
+    - name: t_wall_e_bot (t.me/t_wall_e_bot)
+    - add dependencies:
+        - teloxide: macros
+        - log
+        - pretty_env_logger
+        - tokio: rt-multi-thread, macros

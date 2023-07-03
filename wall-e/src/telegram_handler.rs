@@ -12,8 +12,16 @@ enum Command {
     Help,
     #[command(description = "Show balance")]
     ShowBalance,
-    #[command(description = "Add balance")]
-    AddBalance,
+    #[command(description = "Add balance", parse_with = "split")]
+    AddBalance {
+        user: String,
+        op_1: String,
+        amount_1: String,
+        unit_1: String,
+        op_2: String,
+        amount_2: String,
+        unit_2: String,
+    },
 }
 
 pub async fn start(token: &str) {
@@ -33,7 +41,21 @@ async fn handle_message(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<
                 .await?
         }
         Command::ShowBalance => bot.send_message(msg.chat.id, "show_balanace").await?,
-        Command::AddBalance => bot.send_message(msg.chat.id, "add_balance").await?,
+        Command::AddBalance {
+            user,
+            op_1,
+            amount_1,
+            unit_1,
+            op_2,
+            amount_2,
+            unit_2,
+        } => {
+            bot.send_message(
+                msg.chat.id,
+                format!("{user} ,{op_1}, {amount_1}, {unit_1}, {op_2}, {amount_2}, {unit_2} "),
+            )
+            .await?
+        }
     };
 
     Ok(())

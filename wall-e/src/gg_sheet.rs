@@ -3,6 +3,7 @@
 use anyhow::Ok;
 use google_sheets4::oauth2::authenticator::Authenticator;
 
+#[derive(Clone)]
 pub struct GgsClient {
     hub: google_sheets4::Sheets<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
     sheet_id: String,

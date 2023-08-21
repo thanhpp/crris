@@ -24,11 +24,11 @@ DATE     | Entity   | Name      | Balance (unit1) | Balance (unit2) |
  A2      | B2       | C2        | D2              | E2              |
 
 - Implemetations:
-    - [ ] Telegram client
-    - [ ] Google sheet client
-    - [ ] Command parser
-    - [ ] Google sheet service write
-    - [ ] Google sheet service read
+    - [x] Telegram client
+    - [x] Google sheet client
+    - [x] Command parser
+    - [x] Google sheet service write
+    - [x] Google sheet service read
 - Telegram client: https://github.com/teloxide/teloxide
     - chat with @Botfather to create a new bot
     - name: t_wall_e_bot (t.me/t_wall_e_bot)

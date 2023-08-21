@@ -1,7 +1,8 @@
 // authenticate with google API using service account
 
 use anyhow::Ok;
-use google_sheets4::oauth2::authenticator::Authenticator;
+use google_sheets4::{api::ValueRange, oauth2::authenticator::Authenticator};
+use serde_json as json;
 
 #[derive(Clone)]
 pub struct GgsClient {
@@ -80,6 +81,34 @@ impl GgsClient {
         }
 
         Ok(row)
+    }
+
+    pub async fn append_rows(&self, range: &str, data: Vec<&str>) -> anyhow::Result<()> {
+        let mut values: Vec<json::Value> = Vec::new();
+        for d in data.iter() {
+            let val = json::to_value(d)?;
+            values.push(val);
+        }
+
+        let result = self
+            .hub
+            .spreadsheets()
+            .values_append(
+                ValueRange {
+                    major_dimension: Some("ROWS".to_string()),
+                    range: Some(String::from(range)),
+                    values: Some(vec![values]),
+                },
+                &self.sheet_id,
+                range,
+            )
+            .value_input_option("USER_ENTERED")
+            .doit()
+            .await?;
+
+        println!("append_rows result: {:#?}", result);
+
+        Ok(())
     }
 
     async fn gen_auth(

@@ -98,6 +98,13 @@ async fn handler(
                     return Ok(());
                 }
             };
+
+            if let Err(e) = write_balance_op(ggs, &b_op).await {
+                bot.send_message(msg.chat.id, format!("{} {:#?}", e, &b_op))
+                    .await?;
+                return Ok(());
+            }
+
             bot.send_message(msg.chat.id, format!("{:#?}", b_op))
                 .await?;
             return Ok(());
@@ -106,6 +113,17 @@ async fn handler(
             bot.send_message(msg.chat.id, "invalid command").await?;
         }
     };
+
+    Ok(())
+}
+
+async fn write_balance_op(ggs: gg_sheet::GgsClient, b_op: &BalanceOperation) -> anyhow::Result<()> {
+    // range A-E
+    ggs.append_rows(
+        "A3:E",
+        b_op.to_values().iter().map(|s| &**s).collect::<Vec<&str>>(),
+    )
+    .await?;
 
     Ok(())
 }
@@ -119,11 +137,9 @@ fn get_date() -> String {
 struct BalanceOperation {
     user: String,
 
-    sign_positive_1: bool,
     amount_1: f64,
     unit_1: String,
 
-    sign_positive_2: bool,
     amount_2: f64,
     unit_2: String,
 }
@@ -153,11 +169,14 @@ impl BalanceOperation {
         if !valid_ops.contains(&op_1) {
             return Err(anyhow::format_err!("invalid op 1: [{}]", op_1));
         }
+        let mut is_pos = false;
         if op_1.as_str() == "+" {
-            b_op.sign_positive_1 = true;
+            is_pos = true;
         }
-
         b_op.amount_1 = Self::parse_amount(&amount_1)?;
+        if !is_pos {
+            b_op.amount_1 *= -1.0;
+        }
 
         let unit_1 = unit_1.to_lowercase();
         if !valid_units.contains(&unit_1) {
@@ -176,17 +195,25 @@ impl BalanceOperation {
         if !valid_ops.contains(&op_2) {
             return Err(anyhow::format_err!("invalid op 2: [{}]", op_2));
         }
+        let mut is_pos = false;
         if op_2.as_str() == "+" {
-            b_op.sign_positive_2 = true;
+            is_pos = true;
         }
 
         b_op.amount_2 = Self::parse_amount(&amount_2)?;
+        if !is_pos {
+            b_op.amount_2 *= -1.0;
+        }
 
         let unit_2 = unit_2.to_lowercase();
         if !valid_units.contains(&unit_2) {
             return Err(anyhow::format_err!("invalid unit 2: [{}]", unit_2));
         }
         b_op.unit_2 = unit_2;
+
+        if b_op.unit_1 == b_op.unit_2 {
+            return Err(anyhow::format_err!("identical unit [{}]", b_op.unit_1));
+        }
 
         Ok(b_op)
     }
@@ -203,5 +230,38 @@ impl BalanceOperation {
         }
         amount *= 1_000_000.0;
         Ok(amount)
+    }
+
+    fn to_values(&self) -> Vec<String> {
+        // 1 - date
+        // 2 - tpp VND
+        // 3 - tpp PL
+        // 4 - pch VND
+        // 5 - pch PL
+
+        let mut v: Vec<String> = vec![get_date()];
+        if self.user == "tpp" {
+            if self.unit_1 == "vnd" {
+                v.push(self.amount_1.to_string());
+                v.push(self.amount_2.to_string());
+            } else {
+                v.push(self.amount_2.to_string());
+                v.push(self.amount_1.to_string());
+            }
+            v.push(0.to_string());
+            v.push(0.to_string());
+        } else {
+            v.push(0.to_string());
+            v.push(0.to_string());
+            if self.unit_1 == "vnd" {
+                v.push(self.amount_1.to_string());
+                v.push(self.amount_2.to_string());
+            } else {
+                v.push(self.amount_2.to_string());
+                v.push(self.amount_1.to_string());
+            }
+        }
+
+        v
     }
 }

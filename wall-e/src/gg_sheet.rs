@@ -35,7 +35,7 @@ impl GgsClient {
         Ok(c)
     }
 
-    pub async fn read_range(&self, range: &str) -> anyhow::Result<()> {
+    pub async fn read_range(&self, range: &str) -> anyhow::Result<ValueRange> {
         let result = self
             .hub
             .spreadsheets()
@@ -43,9 +43,7 @@ impl GgsClient {
             .doit()
             .await?;
 
-        println!("read range {:#?}, {:#?}", range, result);
-
-        Ok(())
+        Ok(result.1)
     }
 
     pub async fn find_empty_row(&self, range: &str) -> anyhow::Result<i32> {
@@ -90,7 +88,7 @@ impl GgsClient {
             values.push(val);
         }
 
-        let result = self
+        let _ = self
             .hub
             .spreadsheets()
             .values_append(
@@ -105,8 +103,6 @@ impl GgsClient {
             .value_input_option("USER_ENTERED")
             .doit()
             .await?;
-
-        println!("append_rows result: {:#?}", result);
 
         Ok(())
     }

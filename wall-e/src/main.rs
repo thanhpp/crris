@@ -1,16 +1,12 @@
 use chrono::Datelike;
-use std::fs;
 use teloxide::{
     dispatching::UpdateFilterExt, prelude::*, types::Message, utils::command::BotCommands, Bot,
 };
 
 use tokio::signal::unix::{signal, SignalKind};
 
+mod config;
 mod gg_sheet;
-
-const TELEGRAM_BOT_TOKEN_FILE: &str = "telegram_t_wall_e_bot_token";
-const GOOGLE_SECRET_FILE: &str = "/home/thanhpp/.secrets/ggs_private_key.json";
-const GOOGLE_SHEET_ID: &str = "1MKqvQ4tQiw0pk5LFlqW3CcZpOTzH5k8r6W9cwCSS1u8";
 
 #[derive(BotCommands, Clone, Debug)]
 #[command(
@@ -28,31 +24,25 @@ enum Command {
 
 #[tokio::main]
 async fn main() {
+    // cfg
+    let cfg = config::MainConfig::new("./secret.yaml").expect("parse main config");
+
     // init google sheet
-    let ggs_client = gg_sheet::GgsClient::new(GOOGLE_SECRET_FILE, GOOGLE_SHEET_ID)
-        .await
-        .expect("set up ggs client error");
-
-    ggs_client
-        .read_range("Sheet1!D2")
-        .await
-        .expect("read range error");
-
-    let r = ggs_client
-        .find_empty_row("Sheet1!A:A")
-        .await
-        .expect("find empty range error");
-    println!("row {}", r);
+    let ggs_client =
+        gg_sheet::GgsClient::new(&cfg.google_secret_file, &cfg.add_balance_config.sheet_id)
+            .await
+            .expect("set up ggs client error");
 
     // init telegram
-    let data = fs::read_to_string(TELEGRAM_BOT_TOKEN_FILE).expect("read telegram token file error");
-    let tele_bot = Bot::new(data);
+    let tele_bot = Bot::new(cfg.telegram_token.clone());
     tele_bot
         .set_my_commands(Command::bot_commands())
         .await
         .expect("set command error");
 
     tokio::spawn(async move {
+        let cfg = Box::new(cfg);
+
         Dispatcher::builder(
             tele_bot,
             Update::filter_message().branch(
@@ -62,6 +52,7 @@ async fn main() {
             ),
         )
         .dependencies(dptree::deps![ggs_client])
+        .dependencies(dptree::deps![cfg])
         .enable_ctrlc_handler()
         .build()
         .dispatch()
@@ -84,10 +75,16 @@ async fn wait_for_signal() {
 async fn handler(
     bot: Bot,
     ggs: gg_sheet::GgsClient,
+    cfg: Box<config::MainConfig>,
     // me: teloxide::types::Me,
     msg: Message,
     cmd: Command,
 ) -> Result<(), teloxide::RequestError> {
+    if msg.chat.id.to_string().ne(&cfg.add_balance_config.chat_id) {
+        bot.send_message(msg.chat.id, "forbidden chat").await?;
+        return Ok(());
+    }
+
     match cmd {
         Command::AddBalance(s) => {
             let b_op = match BalanceOperation::new(&s) {
@@ -99,14 +96,34 @@ async fn handler(
                 }
             };
 
-            if let Err(e) = write_balance_op(ggs, &b_op).await {
+            if let Err(e) = write_balance_op(&ggs, &b_op, &cfg.add_balance_config.write_range).await
+            {
                 bot.send_message(msg.chat.id, format!("{} {:#?}", e, &b_op))
                     .await?;
                 return Ok(());
             }
 
-            bot.send_message(msg.chat.id, format!("{:#?}", b_op))
-                .await?;
+            let balances =
+                match get_current_balance(&ggs, &cfg.add_balance_config.balance_range).await {
+                    Err(e) => {
+                        bot.send_message(msg.chat.id, format!("get current balance error {}", e))
+                            .await?;
+                        return Ok(());
+                    }
+
+                    Ok(b) => b,
+                };
+
+            let mut response = String::from("---tpp---\n");
+            for (i, b) in balances.iter().enumerate() {
+                if i == 2 {
+                    response.push_str("---pch---\n");
+                }
+                response.push_str(b);
+                response.push('\n');
+            }
+
+            bot.send_message(msg.chat.id, response).await?;
             return Ok(());
         }
         _ => {
@@ -117,15 +134,41 @@ async fn handler(
     Ok(())
 }
 
-async fn write_balance_op(ggs: gg_sheet::GgsClient, b_op: &BalanceOperation) -> anyhow::Result<()> {
+async fn write_balance_op(
+    ggs: &gg_sheet::GgsClient,
+    b_op: &BalanceOperation,
+    write_range: &str,
+) -> anyhow::Result<()> {
     // range A-E
     ggs.append_rows(
-        "A3:E",
+        write_range,
         b_op.to_values().iter().map(|s| &**s).collect::<Vec<&str>>(),
     )
     .await?;
 
     Ok(())
+}
+
+async fn get_current_balance(
+    ggs: &gg_sheet::GgsClient,
+    read_range: &str,
+) -> anyhow::Result<Vec<String>> {
+    let values = ggs.read_range(read_range).await?;
+
+    let mut res = Vec::<String>::new();
+
+    let values = match values.values {
+        None => return Ok(res),
+        Some(vals) => vals,
+    };
+
+    for v in values.iter() {
+        for val in v.iter() {
+            res.push(val.to_string())
+        }
+    }
+
+    Ok(res)
 }
 
 fn get_date() -> String {

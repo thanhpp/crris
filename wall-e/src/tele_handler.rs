@@ -267,11 +267,11 @@ impl BalanceOperation {
         let mut v: Vec<String> = vec![get_date()];
         if self.user == "tpp" {
             if self.unit_1 == "vnd" {
-                v.push(self.amount_1.to_string());
-                v.push(self.amount_2.to_string());
+                v.push(self.amount_1.to_string().replace('.', ","));
+                v.push(self.amount_2.to_string().replace('.', ","));
             } else {
-                v.push(self.amount_2.to_string());
-                v.push(self.amount_1.to_string());
+                v.push(self.amount_2.to_string().replace('.', ","));
+                v.push(self.amount_1.to_string().replace('.', ","));
             }
             v.push(0.to_string());
             v.push(0.to_string());
@@ -279,11 +279,11 @@ impl BalanceOperation {
             v.push(0.to_string());
             v.push(0.to_string());
             if self.unit_1 == "vnd" {
-                v.push(self.amount_1.to_string());
-                v.push(self.amount_2.to_string());
+                v.push(self.amount_1.to_string().replace('.', ","));
+                v.push(self.amount_2.to_string().replace('.', ","));
             } else {
-                v.push(self.amount_2.to_string());
-                v.push(self.amount_1.to_string());
+                v.push(self.amount_2.to_string().replace('.', ","));
+                v.push(self.amount_1.to_string().replace('.', ","));
             }
         }
 

@@ -5,6 +5,7 @@ pub struct MainConfig {
     pub telegram_token: String,
     pub google_secret_file: String,
     pub add_balance_config: AddBalanceConfig,
+    pub tailscale_config: TailscaleConfig,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
@@ -13,6 +14,13 @@ pub struct AddBalanceConfig {
     pub sheet_id: String,
     pub write_range: String,
     pub balance_range: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
+pub struct TailscaleConfig {
+    pub chat_id: String,
+    pub auth: String,
+    pub org: String,
 }
 
 impl MainConfig {

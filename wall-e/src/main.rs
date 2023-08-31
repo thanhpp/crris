@@ -2,12 +2,19 @@ use tokio::signal::unix::{signal, SignalKind};
 
 mod config;
 mod gg_sheet;
+mod tailscale;
 mod tele_handler;
 
 #[tokio::main]
 async fn main() {
     // cfg
     let cfg = config::MainConfig::new("./secret.yaml").expect("parse main config");
+
+    // test tailscale
+    let c = tailscale::Client::new(
+        cfg.tailscale_config.auth.clone(),
+        cfg.tailscale_config.org.clone(),
+    );
 
     // init google sheet
     let ggs_client =
@@ -16,7 +23,7 @@ async fn main() {
             .expect("set up ggs client error");
 
     // init telegram
-    tele_handler::TeleHandler::start(cfg, ggs_client)
+    tele_handler::TeleHandler::start(cfg, ggs_client, c)
         .await
         .expect("start tele handler");
 

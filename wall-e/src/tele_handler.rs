@@ -15,6 +15,8 @@ enum Command {
     ShowBalance,
     #[command(description = "Add balance")]
     AddBalance(String),
+    #[command(description = "Tailscale status")]
+    Tailscale,
 }
 
 pub struct TeleHandler {}
@@ -23,6 +25,7 @@ impl TeleHandler {
     pub async fn start(
         cfg: crate::config::MainConfig,
         ggs_client: crate::gg_sheet::GgsClient,
+        tailscale_client: crate::tailscale::Client,
     ) -> anyhow::Result<()> {
         let tele_bot = Bot::new(cfg.telegram_token.clone());
         tele_bot.set_my_commands(Command::bot_commands()).await?;
@@ -36,7 +39,7 @@ impl TeleHandler {
                         .endpoint(Self::handler),
                 ),
             )
-            .dependencies(dptree::deps![ggs_client, cfg])
+            .dependencies(dptree::deps![ggs_client, cfg, tailscale_client])
             .enable_ctrlc_handler()
             .build()
             .dispatch()
@@ -50,17 +53,18 @@ impl TeleHandler {
         bot: Bot,
         ggs: crate::gg_sheet::GgsClient,
         cfg: crate::config::MainConfig,
+        ts: crate::tailscale::Client,
         // me: teloxide::types::Me,
         msg: Message,
         cmd: Command,
     ) -> Result<(), teloxide::RequestError> {
-        if msg.chat.id.to_string().ne(&cfg.add_balance_config.chat_id) {
-            bot.send_message(msg.chat.id, "forbidden chat").await?;
-            return Ok(());
-        }
-
         match cmd {
             Command::AddBalance(s) => {
+                if msg.chat.id.to_string().ne(&cfg.add_balance_config.chat_id) {
+                    bot.send_message(msg.chat.id, "forbidden chat").await?;
+                    return Ok(());
+                }
+
                 let b_op = match BalanceOperation::new(&s) {
                     Ok(b_op) => b_op,
                     Err(e) => {
@@ -88,12 +92,28 @@ impl TeleHandler {
                 };
             }
             Command::ShowBalance => {
+                if msg.chat.id.to_string().ne(&cfg.add_balance_config.chat_id) {
+                    bot.send_message(msg.chat.id, "forbidden chat").await?;
+                    return Ok(());
+                }
+
                 match Self::send_balance(&ggs, &cfg.add_balance_config.balance_range, &bot, &msg)
                     .await
                 {
                     Ok(_) => return Ok(()),
                     Err(e) => return Err(e),
                 };
+            }
+            Command::Tailscale => {
+                if msg.chat.id.to_string().ne(&cfg.add_balance_config.chat_id) {
+                    bot.send_message(msg.chat.id, "forbidden chat").await?;
+                    return Ok(());
+                }
+
+                match Self::tailscale_status(&ts, &bot, &msg).await {
+                    Ok(_) => return Ok(()),
+                    Err(e) => return Err(e),
+                }
             }
             _ => {
                 bot.send_message(msg.chat.id, "invalid command").await?;
@@ -128,6 +148,49 @@ impl TeleHandler {
         }
 
         b.send_message(msg.chat.id, response).await?;
+
+        Ok(())
+    }
+
+    async fn tailscale_status(
+        ts: &crate::tailscale::Client,
+        b: &Bot,
+        msg: &Message,
+    ) -> anyhow::Result<(), teloxide::RequestError> {
+        let resp = match ts.list_devices().await {
+            Err(e) => {
+                b.send_message(msg.chat.id, format!("list devices error: {}", e))
+                    .await?;
+                return Ok(());
+            }
+            Ok(r) => r,
+        };
+
+        let mut resp_msg = String::new();
+        for d in resp.devices {
+            let t = match chrono::DateTime::parse_from_rfc3339(&d.last_seen) {
+                Ok(t) => t,
+                Err(e) => {
+                    b.send_message(
+                        msg.chat.id,
+                        format!("parse time error: {} [{}]", e, &d.last_seen),
+                    )
+                    .await?;
+                    return Ok(());
+                }
+            };
+
+            resp_msg.push_str(
+                format!(
+                    "{}: {}\n",
+                    d.hostname,
+                    t.with_timezone(&chrono_tz::Asia::Bangkok)
+                )
+                .as_str(),
+            )
+        }
+
+        b.send_message(msg.chat.id, resp_msg).await?;
 
         Ok(())
     }

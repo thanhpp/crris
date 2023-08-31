@@ -7,6 +7,8 @@ mod tele_handler;
 
 #[tokio::main]
 async fn main() {
+    println!("bot starting... {}", chrono::Utc::now());
+
     // cfg
     let cfg = config::MainConfig::new("./secret.yaml").expect("parse main config");
 

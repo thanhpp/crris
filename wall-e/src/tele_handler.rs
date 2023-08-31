@@ -105,7 +105,7 @@ impl TeleHandler {
                 };
             }
             Command::Tailscale => {
-                if msg.chat.id.to_string().ne(&cfg.add_balance_config.chat_id) {
+                if msg.chat.id.to_string().ne(&cfg.tailscale_config.chat_id) {
                     bot.send_message(msg.chat.id, "forbidden chat").await?;
                     return Ok(());
                 }

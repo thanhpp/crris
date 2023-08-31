@@ -80,37 +80,54 @@ impl TeleHandler {
                         .await?;
                     return Ok(());
                 }
-
-                let balances =
-                    match get_current_balance(&ggs, &cfg.add_balance_config.balance_range).await {
-                        Err(e) => {
-                            bot.send_message(
-                                msg.chat.id,
-                                format!("get current balance error {}", e),
-                            )
-                            .await?;
-                            return Ok(());
-                        }
-
-                        Ok(b) => b,
-                    };
-
-                let mut response = String::from("---tpp---\n");
-                for (i, b) in balances.iter().enumerate() {
-                    if i == 2 {
-                        response.push_str("---pch---\n");
-                    }
-                    response.push_str(b);
-                    response.push('\n');
-                }
-
-                bot.send_message(msg.chat.id, response).await?;
-                return Ok(());
+                match Self::send_balance(&ggs, &cfg.add_balance_config.balance_range, &bot, &msg)
+                    .await
+                {
+                    Ok(_) => return Ok(()),
+                    Err(e) => return Err(e),
+                };
+            }
+            Command::ShowBalance => {
+                match Self::send_balance(&ggs, &cfg.add_balance_config.balance_range, &bot, &msg)
+                    .await
+                {
+                    Ok(_) => return Ok(()),
+                    Err(e) => return Err(e),
+                };
             }
             _ => {
                 bot.send_message(msg.chat.id, "invalid command").await?;
             }
         };
+
+        Ok(())
+    }
+
+    async fn send_balance(
+        ggs: &crate::gg_sheet::GgsClient,
+        balance_range: &str,
+        b: &Bot,
+        msg: &Message,
+    ) -> anyhow::Result<(), teloxide::RequestError> {
+        let balances = match get_current_balance(ggs, balance_range).await {
+            Err(e) => {
+                b.send_message(msg.chat.id, format!("get current balance error {}", e))
+                    .await?;
+                return Ok(());
+            }
+            Ok(b) => b,
+        };
+
+        let mut response = String::from("---tpp---\n");
+        for (i, b) in balances.iter().enumerate() {
+            if i == 2 {
+                response.push_str("---pch---\n");
+            }
+            response.push_str(b);
+            response.push('\n');
+        }
+
+        b.send_message(msg.chat.id, response).await?;
 
         Ok(())
     }

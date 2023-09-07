@@ -37,7 +37,7 @@ mod tests {
         match cfg.slack_client_config.webhooks {
             None => panic!("webhook not found"),
             Some(w) => {
-                if w.len() == 0 {
+                if w.is_empty() {
                     panic!("empty webhook");
                 };
                 w[0].webhook.to_string() // copy

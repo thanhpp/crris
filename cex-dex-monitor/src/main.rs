@@ -3,7 +3,11 @@
 mod cexdexclient;
 mod slackclient;
 
-use std::{collections::HashSet, thread, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    thread,
+    time::Duration,
+};
 
 use crate::cexdexclient::client::*;
 use cex_dex_monitor::{CexDexConfig, Config};
@@ -16,7 +20,7 @@ async fn main() {
     match cfg.slack_client_config.webhooks {
         None => panic!("empty slack webhooks"),
         Some(wh) => {
-            if wh.len() == 0 {
+            if wh.is_empty() {
                 panic!("empty slack webhooks")
             }
             for w in wh {
@@ -61,11 +65,11 @@ async fn monitor(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::client::Cli
         let states = states.unwrap();
 
         // insert first time run
-        if mut_done_states.len() == 0 {
+        if mut_done_states.is_empty() {
             for i in 0..states.data.len() {
                 let state = &states.data[i];
                 // skips empty state
-                if state.state_id.len() == 0 {
+                if state.state_id.is_empty() {
                     continue;
                 }
                 // insert states
@@ -82,7 +86,7 @@ async fn monitor(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::client::Cli
         for i in 0..states.data.len() {
             let state = &states.data[i];
             // skips empty state
-            if state.state_id.len() == 0 {
+            if state.state_id.is_empty() {
                 continue;
             }
 
@@ -95,7 +99,7 @@ async fn monitor(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::client::Cli
             if let Err(e) = sl_client
                 .send_message(
                     String::from("alert-virtual-taker-1"),
-                    String::from(build_state_done_message(state, &cex_dex_cfg.env)),
+                    build_state_done_message(state, &cex_dex_cfg.env),
                 )
                 .await
             {
@@ -184,4 +188,101 @@ ASSET CHANGES:
         state.p2_summary_txs(),
         state.asset_changes(),
     )
+}
+
+async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::client::Client) {
+    let mut last_balances = HashMap::<String, f64>::new();
+
+    let cd_client = CexDexClient::new(
+        cex_dex_cfg.base_url.clone(),
+        cex_dex_cfg.user.clone(),
+        cex_dex_cfg.pass.clone(),
+    );
+
+    loop {
+        let cex_balances = match cd_client.get_cex_balanace().await {
+            Ok(b) => b,
+            Err(e) => {
+                println!("get dex balance error: {}", e);
+                continue;
+            }
+        };
+
+        let dex_balances = match cd_client.get_dex_balanace().await {
+            Ok(b) => b,
+            Err(e) => {
+                println!("get dex balance error: {}", e);
+                continue;
+            }
+        };
+
+        let mut curr_balance = HashMap::<String, f64>::new();
+        for (asset, b) in cex_balances.data.data.iter() {
+            match curr_balance.get_mut(asset) {
+                Some(asset_b) => *asset_b += b.free + b.locked,
+                None => {
+                    curr_balance.insert(asset.clone(), b.free + b.locked);
+                }
+            }
+        }
+
+        for (asset, b) in dex_balances.data.balances.iter() {
+            match curr_balance.get_mut(asset) {
+                Some(asset_b) => *asset_b += b,
+                None => {
+                    curr_balance.insert(asset.clone(), *b);
+                }
+            }
+        }
+
+        for (asset, b) in dex_balances.data.contract_balances.iter() {
+            match curr_balance.get_mut(asset) {
+                Some(asset_b) => *asset_b += b,
+                None => {
+                    curr_balance.insert(asset.clone(), *b);
+                }
+            }
+        }
+
+        if last_balances.is_empty() {
+            last_balances = curr_balance;
+            continue;
+        }
+
+        // get diff
+        let mut diff = curr_balance.clone();
+
+        for (k, v) in last_balances.iter() {
+            match diff.get_mut(k) {
+                None => {
+                    diff.insert(k.clone(), -*v);
+                }
+                Some(b) => *b -= *v,
+            }
+        }
+
+        let mut msg = format!(
+            "*****
+*ASSET DIFF*
+> ENV: {}
+",
+            cex_dex_cfg.env
+        );
+
+        for (asset, diff) in diff.iter() {
+            msg.push_str(format!("{}: {}\n", asset, diff).as_str())
+        }
+
+        match sl_client
+            .send_message(String::from("alert-virtual-taker-1"), msg)
+            .await
+        {
+            Ok(()) => {}
+            Err(e) => {
+                println!("send slack diff message error: {}", e);
+            }
+        };
+
+        tokio::time::sleep(Duration::from_secs(3600)).await;
+    }
 }

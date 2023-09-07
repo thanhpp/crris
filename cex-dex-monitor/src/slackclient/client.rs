@@ -28,7 +28,7 @@ impl Client {
     pub async fn send_message(&self, channel: String, msg: String) -> Result<(), Box<dyn Error>> {
         // get webhook urlBox
         let webhook = self.webhooks.get(&channel);
-        if let None = webhook {
+        if webhook.is_none() {
             return Err(ChannelNotFound.into());
         }
         let webhook = webhook.unwrap();
@@ -93,7 +93,7 @@ pub struct ResponseNotSuccess {
 
 impl ResponseNotSuccess {
     pub fn new(code: u16) -> ResponseNotSuccess {
-        ResponseNotSuccess { code: code }
+        ResponseNotSuccess { code }
     }
 }
 

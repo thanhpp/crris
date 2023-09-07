@@ -40,7 +40,7 @@ pub struct StateData {
 }
 
 impl StateData {
-    fn sum_filled(&self, v: &Vec<CexOrderData>, f: fn(&CexOrderData) -> f64) -> f64 {
+    fn sum_filled(&self, v: &[CexOrderData], f: fn(&CexOrderData) -> f64) -> f64 {
         v.iter().map(f).sum()
     }
 
@@ -53,7 +53,7 @@ impl StateData {
                 if base_filled == 0.0 {
                     return 0.0;
                 }
-                return quote_filled / base_filled;
+                quote_filled / base_filled
             }
         }
     }
@@ -193,4 +193,35 @@ pub struct DexTxData {
     pub mined_at: i64,
     pub mined_block: u64,
     pub native_token_price_in_quote: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GetCEXBalanceResponse {
+    pub result: ResponseResult,
+    pub data: CEXBalanceData,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CEXBalanceData {
+    pub id: String,
+    pub data: HashMap<String, CEXBalance>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CEXBalance {
+    pub free: f64,
+    pub locked: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GetDEXBalanceResponse {
+    pub result: ResponseResult,
+    pub data: DEXBalanceData,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct DEXBalanceData {
+    pub id: String,
+    pub balances: HashMap<String, f64>,
+    pub contract_balances: HashMap<String, f64>,
 }

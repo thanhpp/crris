@@ -13,9 +13,9 @@ impl CexDexClient {
     pub fn new(base_url: String, user: String, pass: String) -> CexDexClient {
         CexDexClient {
             client: reqwest::Client::new(),
-            base_url: base_url,
-            user: user,
-            pass: pass,
+            base_url,
+            user,
+            pass,
         }
     }
 
@@ -46,6 +46,50 @@ impl CexDexClient {
         let body = self
             .client
             .get(format!("{}/state", self.base_url))
+            .header(CONTENT_TYPE, "application/json")
+            .basic_auth(&self.user, Some(&self.pass))
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        let resp = match serde_json::from_str(&body) {
+            Ok(r) => r,
+            Err(e) => {
+                println!("serde_json error {}, body {}", e, &body);
+                return Err(e.into());
+            }
+        };
+
+        Ok(resp)
+    }
+
+    pub async fn get_cex_balanace(&self) -> anyhow::Result<GetCEXBalanceResponse> {
+        let body = self
+            .client
+            .get(format!("{}/cex/binance/balances", self.base_url))
+            .header(CONTENT_TYPE, "application/json")
+            .basic_auth(&self.user, Some(&self.pass))
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        let resp = match serde_json::from_str(&body) {
+            Ok(r) => r,
+            Err(e) => {
+                println!("serde_json error {}, body {}", e, &body);
+                return Err(e.into());
+            }
+        };
+
+        Ok(resp)
+    }
+
+    pub async fn get_dex_balanace(&self) -> anyhow::Result<GetDEXBalanceResponse> {
+        let body = self
+            .client
+            .get(format!("{}/cex/binance/balances", self.base_url))
             .header(CONTENT_TYPE, "application/json")
             .basic_auth(&self.user, Some(&self.pass))
             .send()

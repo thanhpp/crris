@@ -3,13 +3,13 @@ mod slackclient;
 use serde::Deserialize;
 use std::{error::Error, fs};
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Clone)]
 pub struct Config {
     pub cex_dex_config: Vec<CexDexConfig>,
     pub slack_client_config: slackclient::client::SlackClientConfig,
 }
 
-#[derive(serde::Serialize, Deserialize)]
+#[derive(serde::Serialize, Deserialize, Clone)]
 pub struct CexDexConfig {
     pub env: String,
     pub base_url: String,

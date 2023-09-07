@@ -30,9 +30,16 @@ async fn main() {
     }
 
     for v in cfg.cex_dex_config {
-        let sl_client_con = sl_client.clone();
+        let sl_client_con_1 = sl_client.clone();
+        let sl_client_con_2 = sl_client.clone();
+        let v_1 = v.clone();
+        let v_2 = v.clone();
         tokio::spawn(async move {
-            monitor(&v, sl_client_con).await;
+            monitor(&v_1, sl_client_con_1).await;
+        });
+
+        tokio::spawn(async move {
+            monitor_balances(&v_2, sl_client_con_2).await;
         });
     }
 
@@ -200,6 +207,8 @@ async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::cl
     );
 
     loop {
+        tokio::time::sleep(Duration::from_secs(5)).await;
+
         let cex_balances = match cd_client.get_cex_balanace().await {
             Ok(b) => b,
             Err(e) => {

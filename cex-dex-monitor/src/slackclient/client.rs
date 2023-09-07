@@ -55,12 +55,12 @@ impl Client {
 
 // config
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct SlackClientConfig {
     pub webhooks: Option<Vec<WebhookConfig>>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct WebhookConfig {
     pub channel: String,
     pub webhook: String,

@@ -89,7 +89,7 @@ impl CexDexClient {
     pub async fn get_dex_balanace(&self) -> anyhow::Result<GetDEXBalanceResponse> {
         let body = self
             .client
-            .get(format!("{}/cex/binance/balances", self.base_url))
+            .get(format!("{}/dex/polygon/balances", self.base_url))
             .header(CONTENT_TYPE, "application/json")
             .basic_auth(&self.user, Some(&self.pass))
             .send()

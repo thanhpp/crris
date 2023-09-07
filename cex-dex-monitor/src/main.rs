@@ -38,6 +38,10 @@ async fn main() {
             monitor(&v_1, sl_client_con_1).await;
         });
 
+        if v.env.ne("prod") {
+            continue;
+        }
+
         tokio::spawn(async move {
             monitor_balances(&v_2, sl_client_con_2).await;
         });
@@ -212,7 +216,7 @@ async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::cl
         let cex_balances = match cd_client.get_cex_balanace().await {
             Ok(b) => b,
             Err(e) => {
-                println!("get dex balance error: {}", e);
+                println!("get cex balance error: {}", e);
                 continue;
             }
         };
@@ -252,6 +256,8 @@ async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::cl
                 }
             }
         }
+
+        println!("get curr balance OK {}", curr_balance.len());
 
         if last_balances.is_empty() {
             last_balances = curr_balance;

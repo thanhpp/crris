@@ -204,7 +204,7 @@ pub struct GetCEXBalanceResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CEXBalanceData {
     pub id: String,
-    pub data: HashMap<String, CEXBalance>,
+    pub balances: HashMap<String, CEXBalance>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -226,7 +226,7 @@ async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::cl
         };
 
         let mut curr_balance = HashMap::<String, f64>::new();
-        for (asset, b) in cex_balances.data.data.iter() {
+        for (asset, b) in cex_balances.data.balances.iter() {
             match curr_balance.get_mut(asset) {
                 Some(asset_b) => *asset_b += b.free + b.locked,
                 None => {

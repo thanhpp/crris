@@ -202,7 +202,8 @@ ASSET CHANGES:
 }
 
 async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::client::Client) {
-    let mut last_balances = HashMap::<String, f64>::new();
+    let mut last_balances: HashMap<String, f64> = HashMap::<String, f64>::new();
+    let mut last_balance_update = chrono::Utc::now();
 
     let cd_client = CexDexClient::new(
         cex_dex_cfg.base_url.clone(),
@@ -261,6 +262,12 @@ async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::cl
 
         if last_balances.is_empty() {
             last_balances = curr_balance;
+            last_balance_update = chrono::Utc::now();
+            continue;
+        }
+
+        let utc_now = chrono::Utc::now();
+        if utc_now - last_balance_update < chrono::Duration::hours(24) {
             continue;
         }
 
@@ -276,10 +283,14 @@ async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::cl
             }
         }
 
+        last_balances = curr_balance;
+        last_balance_update = utc_now;
+
         let mut msg = format!(
             "*****
 *ASSET DIFF*
 > ENV: {}
+> 24h
 ",
             cex_dex_cfg.env
         );

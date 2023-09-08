@@ -296,6 +296,9 @@ async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::cl
         );
 
         for (asset, diff) in diff.iter() {
+            if *diff == 0.0 {
+                continue;
+            }
             msg.push_str(format!("{}: {}\n", asset, diff).as_str())
         }
 

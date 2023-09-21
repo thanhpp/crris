@@ -300,15 +300,17 @@ async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::cl
                 "*****
 *ASSET DIFF*
 > ENV: {}
-> {} - {}
+> {} -> {}
 ",
-                cex_dex_cfg.env, last_balance_update, utc_now
+                cex_dex_cfg.env,
+                last_balance_update.to_rfc3339(),
+                utc_now.to_rfc3339()
             );
 
             last_balances = curr_balance;
             last_balance_update = utc_now;
 
-            for (asset, diff) in diff_map.iter() {
+            for (asset, diff) in diff_vec.iter() {
                 if *diff == 0.0 {
                     continue;
                 }

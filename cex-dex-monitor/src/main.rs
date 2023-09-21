@@ -202,8 +202,10 @@ ASSET CHANGES:
 }
 
 async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::client::Client) {
+    println!("monitor_balances started");
+
     let mut last_balances: HashMap<String, f64> = HashMap::<String, f64>::new();
-    let mut last_balance_update = chrono::Utc::now();
+    let mut last_balance_update: chrono::DateTime<chrono::Utc> = chrono::Utc::now();
 
     let cd_client = CexDexClient::new(
         cex_dex_cfg.base_url.clone(),
@@ -211,8 +213,16 @@ async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::cl
         cex_dex_cfg.pass.clone(),
     );
 
+    let noti_dur = chrono::Duration::hours(1);
+    let interval_sleep = Duration::from_secs(60 * 10);
+
     loop {
         tokio::time::sleep(Duration::from_secs(5)).await;
+
+        let utc_now = chrono::Utc::now();
+        if !last_balances.is_empty() && utc_now - last_balance_update < noti_dur {
+            continue;
+        }
 
         let cex_balances = match cd_client.get_cex_balanace().await {
             Ok(b) => b,
@@ -266,52 +276,57 @@ async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::cl
             continue;
         }
 
-        let utc_now = chrono::Utc::now();
-        if utc_now - last_balance_update < chrono::Duration::hours(24) {
-            continue;
-        }
-
         // get diff
-        let mut diff = curr_balance.clone();
+        let mut diff_map = curr_balance.clone();
 
         for (k, v) in last_balances.iter() {
-            match diff.get_mut(k) {
+            match diff_map.get_mut(k) {
                 None => {
-                    diff.insert(k.clone(), -*v);
+                    diff_map.insert(k.clone(), -*v);
                 }
                 Some(b) => *b -= *v,
             }
         }
 
-        last_balances = curr_balance;
-        last_balance_update = utc_now;
+        let mut diff_vec = diff_map
+            .drain()
+            .filter(|(_, v)| *v != 0.0)
+            .map(|(k, v)| (k, v))
+            .collect::<Vec<(String, f64)>>();
+        diff_vec.sort_unstable_by(|a, b| a.0.cmp(&b.0));
 
-        let mut msg = format!(
-            "*****
+        if !diff_vec.is_empty() {
+            let mut msg = format!(
+                "*****
 *ASSET DIFF*
 > ENV: {}
-> 24h
+> {} - {}
 ",
-            cex_dex_cfg.env
-        );
+                cex_dex_cfg.env, last_balance_update, utc_now
+            );
 
-        for (asset, diff) in diff.iter() {
-            if *diff == 0.0 {
-                continue;
+            last_balances = curr_balance;
+            last_balance_update = utc_now;
+
+            for (asset, diff) in diff_map.iter() {
+                if *diff == 0.0 {
+                    continue;
+                }
+                msg.push_str(format!("{}: {}\n", asset, diff).as_str())
             }
-            msg.push_str(format!("{}: {}\n", asset, diff).as_str())
+
+            match sl_client
+                .send_message(String::from("alert-virtual-taker-1"), msg)
+                .await
+            {
+                Ok(()) => {}
+                Err(e) => {
+                    println!("send slack diff message error: {}", e);
+                }
+            };
         }
 
-        match sl_client
-            .send_message(String::from("alert-virtual-taker-1"), msg)
-            .await
-        {
-            Ok(()) => {}
-            Err(e) => {
-                println!("send slack diff message error: {}", e);
-            }
-        };
-
-        tokio::time::sleep(Duration::from_secs(3600)).await;
+        // 10 mins
+        tokio::time::sleep(interval_sleep).await;
     }
 }

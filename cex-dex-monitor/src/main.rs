@@ -216,6 +216,8 @@ async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::cl
     let noti_dur = chrono::Duration::hours(1);
     let interval_sleep = Duration::from_secs(60 * 10);
 
+    let epsilon = 0.000001;
+
     loop {
         tokio::time::sleep(Duration::from_secs(5)).await;
 
@@ -290,7 +292,7 @@ async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::cl
 
         let mut diff_vec = diff_map
             .drain()
-            .filter(|(_, v)| *v != 0.0)
+            .filter(|(_, v)| v.abs() >= epsilon)
             .map(|(k, v)| (k, v))
             .collect::<Vec<(String, f64)>>();
         diff_vec.sort_unstable_by(|a, b| a.0.cmp(&b.0));

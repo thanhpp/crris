@@ -236,6 +236,9 @@ async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::cl
         if last_balances.is_empty() {
             last_balances = curr_balances;
             last_balance_update = chrono::Utc::now();
+            if let Err(e) = send_balances_msg(&sl_client, &cex_dex_cfg.env, &last_balances).await {
+                println!("send balance error: {}", e);
+            }
             continue;
         }
 
@@ -356,6 +359,37 @@ async fn send_diff_msg(
             continue;
         }
         msg.push_str(format!("{}: {}\n", asset, diff).as_str())
+    }
+
+    match sl_client
+        .send_message(String::from("alert-virtual-taker-1"), msg)
+        .await
+    {
+        Ok(()) => Ok(()),
+        Err(e) => Err(anyhow::format_err!("{}", e)),
+    }
+}
+
+async fn send_balances_msg(
+    sl_client: &slackclient::client::Client,
+    env: &str,
+    balances: &HashMap<String, f64>,
+) -> anyhow::Result<()> {
+    let mut balances_vec: Vec<(String, f64)> =
+        balances.iter().map(|(k, v)| (k.clone(), *v)).collect();
+
+    balances_vec.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+
+    let mut msg = format!(
+        "******
+*BALANCES*
+> ENV: {}
+",
+        env
+    );
+
+    for (asset, diff) in balances_vec.iter() {
+        msg.push_str(format!("{}: {}\n", asset, diff).as_str());
     }
 
     match sl_client

@@ -204,6 +204,7 @@ pub struct GetCEXBalanceResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CEXBalanceData {
     pub id: String,
+    pub is_rebalancing: bool,
     pub balances: HashMap<String, CEXBalance>,
 }
 
@@ -222,6 +223,7 @@ pub struct GetDEXBalanceResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DEXBalanceData {
     pub id: String,
+    pub is_rebalancing: bool,
     pub balances: HashMap<String, f64>,
     pub contract_balances: HashMap<String, f64>,
 }

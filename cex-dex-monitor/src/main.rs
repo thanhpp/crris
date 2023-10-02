@@ -275,6 +275,19 @@ async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::cl
                 println!("send balance error: {}", e);
             }
 
+            let diff_vec = calculate_diff(&curr_balances, &yesterday_balances, epsilon);
+            if let Err(e) = send_diff_msg(
+                &cex_dex_cfg.env,
+                &yesterday_balance_update,
+                &utc_now,
+                &diff_vec,
+                &sl_client,
+            )
+            .await
+            {
+                println!("send message error: {}", e);
+            }
+
             yesterday_balances = curr_balances;
             yesterday_balance_update = chrono::Utc::now();
         }

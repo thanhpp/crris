@@ -204,6 +204,8 @@ ASSET CHANGES:
 async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::client::Client) {
     println!("monitor_balances started");
 
+    let mut yesterday_balances: HashMap<String, f64> = HashMap::new();
+    let mut yesterday_balance_update: chrono::DateTime<chrono::Utc> = chrono::Utc::now();
     let mut last_balances: HashMap<String, f64> = HashMap::<String, f64>::new();
     let mut last_balance_update: chrono::DateTime<chrono::Utc> = chrono::Utc::now();
     let cd_client = CexDexClient::new(
@@ -211,7 +213,8 @@ async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::cl
         cex_dex_cfg.user.clone(),
         cex_dex_cfg.pass.clone(),
     );
-    let noti_dur = chrono::Duration::hours(1);
+    let short_noti_dur = chrono::Duration::hours(1);
+    let long_noti_dur = chrono::Duration::hours(24);
     let interval_sleep = Duration::from_secs(60 * 10);
     let epsilon = 0.00001;
 
@@ -219,7 +222,7 @@ async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::cl
         tokio::time::sleep(Duration::from_secs(5)).await;
 
         let utc_now = chrono::Utc::now();
-        if !last_balances.is_empty() && utc_now - last_balance_update < noti_dur {
+        if !last_balances.is_empty() && utc_now - last_balance_update < short_noti_dur {
             continue;
         }
 
@@ -234,22 +237,24 @@ async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::cl
             continue;
         }
         if last_balances.is_empty() {
-            last_balances = curr_balances;
+            last_balances = curr_balances.clone();
             last_balance_update = chrono::Utc::now();
+            yesterday_balances = curr_balances;
+            yesterday_balance_update = chrono::Utc::now();
             if let Err(e) = send_balances_msg(&sl_client, &cex_dex_cfg.env, &last_balances).await {
                 println!("send balance error: {}", e);
             }
             continue;
         }
 
-        // get diff
+        // short interval diff
         let diff_vec = calculate_diff(&last_balances, &curr_balances, epsilon);
 
         if !diff_vec.is_empty() {
-            last_balances = curr_balances;
+            last_balances = curr_balances.clone();
             last_balance_update = utc_now;
 
-            match send_diff_msg(
+            if let Err(e) = send_diff_msg(
                 &cex_dex_cfg.env,
                 &last_balance_update,
                 &utc_now,
@@ -258,11 +263,20 @@ async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::cl
             )
             .await
             {
-                Ok(()) => {}
-                Err(e) => {
-                    println!("send message error: {}", e);
-                }
+                println!("send message error: {}", e);
             }
+        }
+
+        // long interval diff
+        if utc_now - yesterday_balance_update >= long_noti_dur {
+            if let Err(e) =
+                send_balances_msg(&sl_client, &cex_dex_cfg.env, &yesterday_balances).await
+            {
+                println!("send balance error: {}", e);
+            }
+
+            yesterday_balances = curr_balances;
+            yesterday_balance_update = chrono::Utc::now();
         }
 
         // 10 mins

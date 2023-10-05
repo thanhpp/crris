@@ -12,7 +12,7 @@ pub struct CexDexClient {
 impl CexDexClient {
     pub fn new(base_url: String, user: String, pass: String) -> CexDexClient {
         CexDexClient {
-            client: reqwest::Client::new(),
+            client: reqwest::Client::builder().build().unwrap(),
             base_url,
             user,
             pass,
@@ -23,7 +23,7 @@ impl CexDexClient {
         let body = self
             .client
             .get(format!("{}/state", self.base_url))
-            .query(&[("is_done", "true"), ("fill_state", "true"), ("size", "50")])
+            .query(&[("is_done", "true"), ("fill_state", "true"), ("size", "20")])
             .header(CONTENT_TYPE, "application/json")
             .basic_auth(&self.user, Some(&self.pass))
             .send()

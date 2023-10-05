@@ -38,14 +38,13 @@ impl<'a> Service<'a> {
     pub async fn monitor_balance(&mut self) {
         let fetch_limit = 1;
         loop {
-            thread::sleep(Duration::from_secs(5));
+            thread::sleep(Duration::from_secs(10));
 
             let mut balance = HashMap::<String, f64>::new();
             let mut fetch_count = fetch_limit;
             while fetch_count > 0 {
                 // if the balance is not changed in 1 minutes, consider it is the true balance
                 thread::sleep(Duration::from_secs(10));
-                println!("fetching balance..., count: {}", fetch_count);
                 match self.fetch_balance().await {
                     Err(e) => {
                         println!("fetch balance error {}", e);
@@ -199,10 +198,10 @@ impl<'a> Service<'a> {
     ) -> anyhow::Result<()> {
         let mut msg = format!(
             "*****
-    *ASSET DIFF*
-    > ENV: {}
-    > {} -> {}
-    ",
+*ASSET DIFF*
+> ENV: {}
+> {} -> {}
+",
             self.env,
             last_balance_update.to_rfc3339(),
             utc_now.to_rfc3339()

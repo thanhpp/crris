@@ -35,9 +35,9 @@ async fn main() {
         let sl_client_con_2 = sl_client.clone();
         let v_1 = v.clone();
         let v_2 = v.clone();
-        // tokio::spawn(async move {
-        //     monitor(&v_1, sl_client_con_1).await;
-        // });
+        tokio::spawn(async move {
+            monitor(&v_1, sl_client_con_1).await;
+        });
 
         if v.env.ne("prod") {
             continue;

@@ -10,9 +10,14 @@ pub struct CexDexClient {
 }
 
 impl CexDexClient {
+    // https://github.com/hyperium/hyper/issues/2136
     pub fn new(base_url: String, user: String, pass: String) -> CexDexClient {
         CexDexClient {
-            client: reqwest::Client::builder().build().unwrap(),
+            client: reqwest::Client::builder()
+                .pool_max_idle_per_host(0)
+                .pool_idle_timeout(None)
+                .build()
+                .unwrap(),
             base_url,
             user,
             pass,

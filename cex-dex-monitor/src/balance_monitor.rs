@@ -1,4 +1,5 @@
 use crate::*;
+use rand::Rng;
 
 pub struct Service<'a> {
     // input
@@ -38,13 +39,12 @@ impl<'a> Service<'a> {
     pub async fn monitor_balance(&mut self) {
         let fetch_limit = 1;
         loop {
-            thread::sleep(Duration::from_secs(10));
-
             let mut balance = HashMap::<String, f64>::new();
             let mut fetch_count = fetch_limit;
             while fetch_count > 0 {
-                // if the balance is not changed in 1 minutes, consider it is the true balance
-                thread::sleep(Duration::from_secs(10));
+                thread::sleep(Duration::from_secs(
+                    20 + (chrono::Utc::now().timestamp() % 5) as u64,
+                ));
                 match self.fetch_balance().await {
                     Err(e) => {
                         println!("fetch balance error {}", e);
@@ -117,7 +117,9 @@ impl<'a> Service<'a> {
                 self.previous_balance_update = now;
             }
 
-            thread::sleep(Duration::from_secs(600));
+            thread::sleep(Duration::from_secs(
+                600 + (chrono::Utc::now().timestamp() % 60) as u64,
+            ));
         }
     }
 

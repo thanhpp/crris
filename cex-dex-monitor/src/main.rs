@@ -66,7 +66,9 @@ async fn monitor(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::client::Cli
 
     println!("starting loop..., env: {}", cex_dex_cfg.env);
     loop {
-        thread::sleep(Duration::from_secs(5));
+        thread::sleep(Duration::from_secs(
+            10 + (chrono::Utc::now().timestamp() % 10) as u64,
+        ));
         let now = chrono::Utc::now().to_rfc3339();
 
         let states = cd_client.get_filled_done_states().await;

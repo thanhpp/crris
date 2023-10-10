@@ -13,3 +13,4 @@ serde_yaml = "0.9"
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 chrono = "0.4"
 anyhow = "1.0.75"
+rand = "0.8.5"

@@ -13,7 +13,7 @@ pub struct Service<'a> {
     previous_balance_update: chrono::DateTime<chrono::Utc>,
 
     // clients
-    cex_dex: cexdexclient::client::CexDexClient,
+    cex_dex: Vec<cexdexclient::client::CexDexClient>,
     slack: &'a slackclient::client::Client,
 }
 
@@ -21,9 +21,13 @@ impl<'a> Service<'a> {
     pub fn new(
         env: String,
         epsilon: f64,
-        cex_dex: cexdexclient::client::CexDexClient,
+        cex_dex: Vec<cexdexclient::client::CexDexClient>,
         slack: &'a slackclient::client::Client,
     ) -> Service {
+        if cex_dex.is_empty() {
+            panic!("empty cex_dex list")
+        }
+
         Self {
             env,
             epsilon,
@@ -124,15 +128,12 @@ impl<'a> Service<'a> {
     }
 
     async fn fetch_balance(&self) -> anyhow::Result<HashMap<String, f64>> {
-        let cex_balance = self.cex_dex.get_cex_balanace().await?;
+        let cex_balance = self.cex_dex[0].get_cex_balanace().await?;
         if cex_balance.data.is_rebalancing {
             return Err(anyhow::format_err!("cex balance is rebalancing"));
         }
 
-        let dex_balance = self.cex_dex.get_dex_balanace().await?;
-        if dex_balance.data.is_rebalancing {
-            return Err(anyhow::format_err!("dex balance is rebalancing"));
-        }
+        let dex_balance = self.fetch_dex_balance().await?;
 
         let mut balance = HashMap::<String, f64>::new();
 
@@ -145,7 +146,7 @@ impl<'a> Service<'a> {
             }
         }
 
-        for (k, v) in dex_balance.data.contract_balances {
+        for (k, v) in dex_balance {
             match balance.get_mut(&k) {
                 None => {
                     balance.insert(k, v);
@@ -154,12 +155,33 @@ impl<'a> Service<'a> {
             }
         }
 
-        for (k, v) in dex_balance.data.balances {
-            match balance.get_mut(&k) {
-                None => {
-                    balance.insert(k, v);
+        Ok(balance)
+    }
+
+    async fn fetch_dex_balance(&self) -> anyhow::Result<HashMap<String, f64>> {
+        let mut balance = HashMap::<String, f64>::new();
+
+        for c in self.cex_dex.iter() {
+            let data = c.get_dex_balanace().await?;
+            if data.data.is_rebalancing {
+                return Err(anyhow::format_err!("dex balance is rebalancing"));
+            }
+            for (k, v) in data.data.contract_balances {
+                match balance.get_mut(&k) {
+                    None => {
+                        balance.insert(k, v);
+                    }
+                    Some(b) => *b += v,
                 }
-                Some(b) => *b += v,
+            }
+
+            for (k, v) in data.data.balances {
+                match balance.get_mut(&k) {
+                    None => {
+                        balance.insert(k, v);
+                    }
+                    Some(b) => *b += v,
+                }
             }
         }
 

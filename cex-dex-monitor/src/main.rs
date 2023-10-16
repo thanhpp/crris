@@ -11,7 +11,7 @@ use std::{
 };
 
 use crate::cexdexclient::client::*;
-use cex_dex_monitor::{CexDexConfig, Config};
+use cex_dex_monitor::{CexDexConfig, Config, URL};
 
 #[tokio::main]
 async fn main() {
@@ -31,20 +31,22 @@ async fn main() {
     }
 
     for v in cfg.cex_dex_config {
-        let sl_client_con_1 = sl_client.clone();
-        let sl_client_con_2 = sl_client.clone();
-        let v_1 = v.clone();
-        let v_2 = v.clone();
-        tokio::spawn(async move {
-            monitor(&v_1, sl_client_con_1).await;
-        });
+        for url in v.urls.iter() {
+            let env = v.env.clone();
+            let slack = sl_client.clone();
+            let url = url.clone();
+            tokio::spawn(async move {
+                monitor(env, url, slack).await;
+            });
+        }
 
         if v.env.ne("prod") {
             continue;
         }
-
+        let config = v.clone();
+        let slack = sl_client.clone();
         tokio::spawn(async move {
-            monitor_balances(&v_2, sl_client_con_2).await;
+            monitor_balances(config, slack).await;
         });
     }
 
@@ -54,17 +56,13 @@ async fn main() {
     }
 }
 
-async fn monitor(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::client::Client) {
+async fn monitor(env: String, url: URL, sl_client: slackclient::client::Client) {
     let mut done_states: HashSet<String> = HashSet::new();
     let mut_done_states = &mut done_states;
 
-    let cd_client = CexDexClient::new(
-        cex_dex_cfg.base_url.clone(),
-        cex_dex_cfg.user.clone(),
-        cex_dex_cfg.pass.clone(),
-    );
+    let cd_client = CexDexClient::new(url.base_url.clone(), url.user.clone(), url.pass.clone());
 
-    println!("starting loop..., env: {}", cex_dex_cfg.env);
+    println!("starting loop..., env: {}", env);
     loop {
         thread::sleep(Duration::from_secs(
             10 + (chrono::Utc::now().timestamp() % 10) as u64,
@@ -113,7 +111,7 @@ async fn monitor(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::client::Cli
             if let Err(e) = sl_client
                 .send_message(
                     String::from("alert-virtual-taker-1"),
-                    build_state_done_message(state, &cex_dex_cfg.env),
+                    build_state_done_message(state, &env),
                 )
                 .await
             {
@@ -122,7 +120,7 @@ async fn monitor(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::client::Cli
             }
             println!(
                 "{} env {}, send update of state id {}",
-                now, cex_dex_cfg.env, state.state_id
+                now, env, state.state_id
             );
         }
 
@@ -144,7 +142,7 @@ async fn monitor(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::client::Cli
 
         for id in remove_state_ids {
             mut_done_states.remove(&id);
-            println!("{} env {}, removed state id {}", now, cex_dex_cfg.env, id);
+            println!("{} env {}, removed state id {}", now, env, id);
         }
     }
 }
@@ -204,18 +202,23 @@ ASSET CHANGES:
     )
 }
 
-async fn monitor_balances(cex_dex_cfg: &CexDexConfig, sl_client: slackclient::client::Client) {
+async fn monitor_balances(cex_dex_cfg: CexDexConfig, sl_client: slackclient::client::Client) {
     println!("monitor_balances started");
 
-    let cd_client = CexDexClient::new(
-        cex_dex_cfg.base_url.clone(),
-        cex_dex_cfg.user.clone(),
-        cex_dex_cfg.pass.clone(),
-    );
+    let mut cex_dex_clients = Vec::<CexDexClient>::new();
+    for url in cex_dex_cfg.urls.iter() {
+        let cd_client = CexDexClient::new(url.base_url.clone(), url.user.clone(), url.pass.clone());
+        cex_dex_clients.push(cd_client);
+    }
+
     let epsilon = 0.00001;
 
-    let mut s =
-        balance_monitor::Service::new(cex_dex_cfg.env.clone(), epsilon, cd_client, &sl_client);
+    let mut s = balance_monitor::Service::new(
+        cex_dex_cfg.env.clone(),
+        epsilon,
+        cex_dex_clients,
+        &sl_client,
+    );
 
     s.monitor_balance().await;
 }

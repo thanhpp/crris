@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use super::dto::*;
 use reqwest::header::CONTENT_TYPE;
 use std::error::Error;
@@ -22,6 +24,10 @@ impl CexDexClient {
             user,
             pass,
         }
+    }
+
+    pub fn base_url(&self) -> String {
+        self.base_url.clone()
     }
 
     pub async fn get_filled_done_states(&self) -> Result<Response, Box<dyn Error + Send + Sync>> {
@@ -105,7 +111,10 @@ impl CexDexClient {
         let resp = match serde_json::from_str(&body) {
             Ok(r) => r,
             Err(e) => {
-                println!("serde_json error {}, body {}", e, &body);
+                println!(
+                    "serde_json error [{}], body [{}], url [{}]",
+                    e, &body, self.base_url
+                );
                 return Err(e.into());
             }
         };

@@ -1,5 +1,4 @@
 use crate::*;
-use rand::Rng;
 
 pub struct Service<'a> {
     // input
@@ -164,7 +163,10 @@ impl<'a> Service<'a> {
         for c in self.cex_dex.iter() {
             let data = c.get_dex_balanace().await?;
             if data.data.is_rebalancing {
-                return Err(anyhow::format_err!("dex balance is rebalancing"));
+                return Err(anyhow::format_err!(
+                    "dex balance is rebalancing, {}",
+                    c.base_url()
+                ));
             }
             for (k, v) in data.data.contract_balances {
                 match balance.get_mut(&k) {
